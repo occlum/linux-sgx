@@ -69,13 +69,13 @@ INCLUDE :=
 # this will return the path to the file that included the buildenv.mk file
 CUR_DIR := $(realpath $(call parent-dir,$(lastword $(wordlist 2,$(words $(MAKEFILE_LIST)),x $(MAKEFILE_LIST)))))
 
-# turn on stack protector for SDK
-CC_BELOW_4_9 := $(shell expr "`$(CC) -dumpversion`" \< "4.9")
-ifeq ($(CC_BELOW_4_9), 1)
-    COMMON_FLAGS += -fstack-protector
-else
-    COMMON_FLAGS += -fstack-protector-strong
-endif
+# turn off stack protector for SDK for Occlum.
+#
+# The reason that stack protector must be disabled for Occlum is that stack 
+# protector and Occlum use %fs in a different way: Stack protector uses %fs 
+# to find the canary value (%fs:0x28), while Occlum sets fs base address to the 
+# offset between the code domain and the data domain of the current SIP.
+COMMON_FLAGS += -fno-stack-protector
 
 ifdef DEBUG
     COMMON_FLAGS += -O0 -ggdb -DDEBUG -UNDEBUG
