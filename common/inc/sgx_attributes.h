@@ -49,7 +49,7 @@
 #define SGX_XFRM_MPX             0x0000000000000018ULL     /* MPX XFRM - not supported */
 #define SGX_XFRM_PKRU            0x0000000000000200ULL     /* PKRU state */
 
-#define SGX_XFRM_RESERVED        (~(SGX_XFRM_LEGACY | SGX_XFRM_AVX | SGX_XFRM_AVX512 | SGX_XFRM_PKRU))
+#define SGX_XFRM_RESERVED        (~(SGX_XFRM_LEGACY | SGX_XFRM_AVX | SGX_XFRM_AVX512 | SGX_XFRM_MPX | SGX_XFRM_PKRU))
 
 typedef struct _attributes_t
 {
