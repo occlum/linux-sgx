@@ -48,7 +48,9 @@
 #define SGX_XFRM_AVX512          0x00000000000000E6ULL     /* AVX-512 XFRM - not supported */
 #define SGX_XFRM_MPX             0x0000000000000018ULL     /* MPX XFRM - not supported */
 
-#define SGX_XFRM_RESERVED        (~(SGX_XFRM_LEGACY | SGX_XFRM_AVX | SGX_XFRM_AVX512))
+/* Occlum notes:
+ * Enable MPX by default */
+#define SGX_XFRM_RESERVED        (~(SGX_XFRM_LEGACY | SGX_XFRM_AVX | SGX_XFRM_AVX512 | SGX_XFRM_MPX))
 
 typedef struct _attributes_t
 {
