@@ -291,6 +291,14 @@ DECLARE_LOCAL_FUNC do_ocall
 
     sub     $(20*SE_WORDSIZE), %xsp    /* 20 slots for GPRs and other info */
     mov     %xcx, SE_WORDSIZE*19(%xsp) /* addr for xsave */
+
+    /* Occlum's notes: save fsbase
+     * The location that we use to save fsbase is the reserved fields of
+     * struct ocall_context_t. Make sure the location remains unused by
+     * future versions of Intel SGX SDK. */
+    rdfsbase %xcx
+    mov     %xcx, SE_WORDSIZE*15(%xsp)
+
 /* save non-volatile registers, except xsp */
     mov     %xbx, SE_WORDSIZE*14(%xsp)
     mov     %xsi, SE_WORDSIZE*13(%xsp)
@@ -455,6 +463,10 @@ DECLARE_GLOBAL_FUNC asm_oret
     mov    12*SE_WORDSIZE(%xsp), %xdi
     mov    13*SE_WORDSIZE(%xsp), %xsi
     mov    14*SE_WORDSIZE(%xsp), %xbx
+
+    /* Occlum's notes: restore fsbase */
+    mov    15*SE_WORDSIZE(%xsp), %xcx
+    wrfsbase %xcx
 
     mov     %xbp, %xsp
     pop     %xbp
