@@ -43,7 +43,8 @@ OBJ := sethread_mutex.o \
        sethread_spinlock.o \
        sethread_rwlock.o \
        sethread_cond.o \
-       sethread_utils.o
+       sethread_utils.o \
+       sethread_self.o
 
 LIBTLIBTHREAD := libtlibthread.a
 
