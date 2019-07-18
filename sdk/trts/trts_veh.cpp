@@ -32,8 +32,8 @@
 
 /**
  * File: trts_veh.cpp
- * Description: 
- *     This file implements the support of custom exception handling. 
+ * Description:
+ *     This file implements the support of custom exception handling.
  */
 
 #include "sgx_trts_exception.h"
@@ -133,7 +133,7 @@ void *sgx_register_exception_handler(int is_first_handler, sgx_exception_handler
 // sgx_unregister_exception_handler()
 //      unregister a custom exception handler.
 // Parameter
-//      handler - a handler to the custom exception handler previously 
+//      handler - a handler to the custom exception handler previously
 // registered using the sgx_register_exception_handler function.
 // Return Value
 //      none zero - success
@@ -259,7 +259,7 @@ extern "C" __attribute__((regparm(1))) void internal_handle_exception(sgx_except
     // ignore invalid return value, treat to EXCEPTION_CONTINUE_SEARCH
     // check SP to be written on SSA is pointing to the trusted stack
     xsp = info->cpu_context.REG(sp);
-    if (!is_valid_sp(xsp))
+    if (!is_valid_sdk_sp(xsp) && !is_valid_user_sp(xsp))
     {
         goto failed_end;
     }
@@ -314,27 +314,27 @@ extern "C" sgx_status_t trts_handle_exception(void *tcs)
     if ((thread_data == NULL) || (tcs == NULL)) goto default_handler;
     if (check_static_stack_canary(tcs) != 0)
         goto default_handler;
- 
+
     if(get_enclave_state() != ENCLAVE_INIT_DONE)
     {
         goto default_handler;
     }
-    
+
     // check if the exception is raised from 2nd phrase
     if(thread_data->exception_flag == -1) {
         goto default_handler;
     }
- 
-    if ((TD2TCS(thread_data) != tcs) 
+
+    if ((TD2TCS(thread_data) != tcs)
             || (((thread_data->first_ssa_gpr)&(~0xfff)) - SE_PAGE_SIZE) != (uintptr_t)tcs) {
         goto default_handler;
     }
 
     // no need to check the result of ssa_gpr because thread_data is always trusted
     ssa_gpr = reinterpret_cast<ssa_gpr_t *>(thread_data->first_ssa_gpr);
-    
+
     sp = ssa_gpr->REG(sp);
-    if(!is_stack_addr((void*)sp, 0))  // check stack overrun only, alignment will be checked after exception handled
+    if(!is_sdk_stack_addr((void*)sp, 0) && !is_user_stack_addr((void*)sp, 0))  // check stack overrun only, alignment will be checked after exception handled
     {
         g_enclave_state = ENCLAVE_CRASHED;
         return SGX_ERROR_STACK_OVERRUN;
@@ -351,7 +351,7 @@ extern "C" sgx_status_t trts_handle_exception(void *tcs)
     sp = sp & ~0xF;
 
     // check the decreased sp to make sure it is in the trusted stack range
-    if(!is_stack_addr((void *)sp, size))
+    if(!is_sdk_stack_addr((void *)sp, size) && !is_user_stack_addr((void*)sp, size))
     {
         g_enclave_state = ENCLAVE_CRASHED;
         return SGX_ERROR_STACK_OVERRUN;
@@ -361,15 +361,15 @@ extern "C" sgx_status_t trts_handle_exception(void *tcs)
     // decrease the stack to save the SSA[0]->ip
     size = sizeof(uintptr_t);
     sp -= size;
-    if(!is_stack_addr((void *)sp, size))
+    if(!is_sdk_stack_addr((void *)sp, size) && !is_user_stack_addr((void*)sp, size))
     {
         g_enclave_state = ENCLAVE_CRASHED;
         return SGX_ERROR_STACK_OVERRUN;
     }
-    
+
     // sp is within limit_addr and commit_addr, currently only SGX 2.0 under hardware mode will enter this branch.^M
-    if((size_t)sp < thread_data->stack_commit_addr)
-    { 
+    if(is_sdk_stack_addr((void*)sp, 0) && (size_t)sp < thread_data->stack_commit_addr)
+    {
         int ret = -1;
         size_t page_aligned_delta = 0;
         /* try to allocate memory dynamically */
@@ -434,12 +434,12 @@ extern "C" sgx_status_t trts_handle_exception(void *tcs)
     ssa_gpr->REG(ax) = (size_t)info;        // 1st parameter (info) for LINUX32
     ssa_gpr->REG(di) = (size_t)info;        // 1st parameter (info) for LINUX64, LINUX32 also uses it while restoring the context
     *new_sp = info->cpu_context.REG(ip);    // for debugger to get call trace
-    
+
     //mark valid to 0 to prevent eenter again
     ssa_gpr->exit_info.valid = 0;
 
     return SGX_SUCCESS;
- 
+
 default_handler:
     g_enclave_state = ENCLAVE_CRASHED;
     return SGX_ERROR_ENCLAVE_CRASHED;

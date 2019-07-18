@@ -191,7 +191,7 @@ DECLARE_GLOBAL_FUNC longjmp
     xorl    %eax, %ebx
     pushl   %ebx
     /* check restored esp is on current statck */
-    call    is_valid_sp
+    call    is_valid_sdk_sp
     cmpl    $0, %eax
     jz      .crash
     popl    %ebx   
@@ -239,7 +239,7 @@ DECLARE_GLOBAL_FUNC longjmp
     pushq   %rdx
     /* check restored rsp is on current statck */
     popq    %rdi
-    call    is_valid_sp
+    call    is_valid_sdk_sp
     cmpl    $0, %eax
     jz      .crash
     POPAQ

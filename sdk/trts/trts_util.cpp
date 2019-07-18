@@ -30,6 +30,7 @@
  */
 
 
+#include "sgx_trts.h"
 #include "trts_util.h"
 #include "global_data.h"
 #include "util.h"
@@ -114,7 +115,7 @@ int feature_supported(const uint64_t *feature_set, uint32_t feature_shift)
         return 0;
 }
 
-bool is_stack_addr(void *address, size_t size)
+bool is_sdk_stack_addr(void *address, size_t size)
 {
     thread_data_t *thread_data = get_thread_data();
     size_t stack_base = thread_data->stack_base_addr;
@@ -123,9 +124,53 @@ bool is_stack_addr(void *address, size_t size)
     return (addr <= (addr + size)) && (stack_base >= (addr + size)) && (stack_limit <= addr);
 }
 
-bool is_valid_sp(uintptr_t sp)
+bool is_valid_sdk_sp(uintptr_t sp)
 {
     return ( !(sp & (sizeof(uintptr_t) - 1))   // sp is expected to be 4/8 bytes aligned
-           && is_stack_addr((void*)sp, 0) );   // sp points to the top/bottom of stack are accepted
+           && is_sdk_stack_addr((void*)sp, 0) );   // sp points to the top/bottom of stack are accepted
 }
 
+bool is_user_stack_addr(void *address, size_t size)
+{
+    thread_data_t *thread_data = get_thread_data();
+    if (!thread_data->user_stack_is_enabled) return false;
+
+    size_t stack_base = thread_data->user_stack_base_addr;
+    size_t stack_limit  = thread_data->user_stack_limit_addr;
+    size_t addr = (size_t) address;
+    return (addr <= (addr + size)) && (stack_base >= (addr + size)) && (stack_limit <= addr);
+}
+
+bool is_valid_user_sp(uintptr_t sp)
+{
+    return ( !(sp & (sizeof(uintptr_t) - 1))       // sp is expected to be 4/8 bytes aligned
+           && is_user_stack_addr((void*)sp, 0) );  // sp points to the top/bottom of stack are accepted
+}
+
+// Compiler barriers are inserted so that the memory orderings are
+// preserved in case of any exceptions. This ensures that even if an
+// exception occurs right in middle of updating stack base and limit (see
+// the two functions below), the enclave exception handler can still use
+// is_user_stack_addr function properly.
+#define COMPILER_BARRIER        { asm volatile("" ::: "memory"); }
+
+int sgx_enable_user_stack(size_t stack_base, size_t stack_limit) {
+    if (stack_base <= stack_limit) return SGX_ERROR_INVALID_PARAMETER;
+
+    thread_data_t *thread_data = get_thread_data();
+    thread_data->user_stack_is_enabled = 0;
+    COMPILER_BARRIER;
+    thread_data->user_stack_base_addr = stack_base;
+    thread_data->user_stack_limit_addr = stack_limit;
+    COMPILER_BARRIER;
+    thread_data->user_stack_is_enabled = 1;
+    return SGX_SUCCESS;
+}
+
+void sgx_disable_user_stack(void) {
+    thread_data_t *thread_data = get_thread_data();
+    thread_data->user_stack_is_enabled = 0;
+    COMPILER_BARRIER;
+    thread_data->user_stack_base_addr = 0;
+    thread_data->user_stack_limit_addr = 0;
+}
