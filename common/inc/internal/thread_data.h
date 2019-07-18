@@ -112,6 +112,16 @@ typedef struct _thread_data_t
 #endif
     sys_word_t  cxx_thread_info[6];
     sys_word_t  stack_commit_addr;
+    // Occlum notes:
+    // The default stack is defined by SGX SDK (see stack_base_addr and
+    // stack_limit_addr). To support user-defined stacks (e.g., Occlum allocates
+    // stacks for user programs running upon Occlum), this struct is extended
+    // with the info about the optional user-defined stack associated with a
+    // SGX thread. The enclave exception handler uses this additional info
+    // about user-defined stacks to validate the stack pointers.
+    sys_word_t  user_stack_is_enabled;
+    sys_word_t  user_stack_base_addr;
+    sys_word_t  user_stack_limit_addr;
 } thread_data_t;
 
 #ifdef __cplusplus

@@ -33,7 +33,7 @@
 /**
  * File: init_enclave.cpp
  * Description:
- *     Initialize enclave by rebasing the image to the enclave base 
+ *     Initialize enclave by rebasing the image to the enclave base
  */
 
 #include <string.h>
@@ -58,7 +58,7 @@ int EDMM_supported __attribute__((section(RELRO_SECTION_NAME))) = 0;
 sdk_version_t g_sdk_version __attribute__((section(RELRO_SECTION_NAME))) = SDK_VERSION_1_5;
 
 const volatile global_data_t g_global_data __attribute__((section(".niprod"))) = {1, 2, 3, 4, 5, 6, 0, 0,
-   {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, {0, 0, 0, 0, 0, 0}, 0}, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 0, 0, {{{0, 0, 0, 0, 0, 0, 0}}}};
+   {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, {0, 0, 0, 0, 0, 0}, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 0, 0, {{{0, 0, 0, 0, 0, 0, 0}}}};
 uint32_t g_enclave_state __attribute__((section(".nipd"))) = ENCLAVE_INIT_NOT_STARTED;
 uint32_t g_cpu_core_num __attribute__((section(RELRO_SECTION_NAME))) = 0;
 
@@ -205,7 +205,7 @@ extern "C" int init_enclave(void *enclave_base, void *ms)
             return -1;
         }
     }
-    else 
+    else
     {
         if (0 != init_optimized_libs(cpu_features, NULL, xfrm))
         {
@@ -219,7 +219,7 @@ extern "C" int init_enclave(void *enclave_base, void *ms)
             return -1;
     }
 
-    
+
     if(SGX_SUCCESS != sgx_read_rand((unsigned char*)&__stack_chk_guard,
                                      sizeof(__stack_chk_guard)))
     {
