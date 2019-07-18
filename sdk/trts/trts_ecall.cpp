@@ -318,6 +318,9 @@ sgx_status_t do_init_thread(void *tcs, bool enclave_init)
     thread_data->stack_base_addr -= (size_t)STATIC_STACK_SIZE;
     thread_data->stack_guard = stack_guard;
     thread_data->flags = thread_flags;
+    thread_data->user_stack_is_enabled = 0;
+    thread_data->user_stack_base_addr = 0;
+    thread_data->user_stack_limit_addr = 0;
     init_static_stack_canary(tcs);
 
     if (enclave_init)

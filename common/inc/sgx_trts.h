@@ -82,6 +82,33 @@ int SGXAPI sgx_is_enclave_crashed(void) __attribute__((section(".nipx")));
 */
 sgx_status_t SGXAPI sgx_read_rand(unsigned char *rand, size_t length_in_bytes);
 
+
+/* sgx_enable_user_stack()
+ *
+ * Added for Occlum
+ *
+ * Enable a user-defined stack for the current SGX thread. By letting SGX SDK
+ * be aware of this user-defined stack, SGX SDK can validate a stack pointer
+ * against either the SGX-defined stack or the user-defined stack.
+ *
+ * Parameters:
+ *      stack_base - the top of the stack (the highest address)
+ *      stack_limit - the bottom of the stack (the lowest address)
+ * Return Value:
+ *      SGX_SUCCESS - success
+ *      SGX_ERROR_INVALID_PARAMETER - the parameter is invalid
+*/
+int SGXAPI sgx_enable_user_stack(size_t stack_base, size_t stack_limit);
+
+
+/* sgx_disable_user_stack()
+ *
+ * Added for Occlum
+ *
+ * Disable the user-defined stack.
+*/
+void SGXAPI sgx_disable_user_stack(void);
+
 #ifdef __cplusplus
 }
 #endif
