@@ -81,7 +81,7 @@ int32_t protected_fs_file::remove(const char* filename)
 
 		if (real_file_size == 0 || real_file_size % NODE_SIZE != 0)
 			break; // empty file or not an SGX protected FS file
-		
+
 		// might be an SGX protected FS file
 		status = u_sgxprotectedfs_fread_node(&result32, file, 0, (uint8_t*)file_meta_data, NODE_SIZE);
 		if (status != SGX_SUCCESS || result32 != 0)
@@ -89,22 +89,22 @@ int32_t protected_fs_file::remove(const char* filename)
 
 		if (file_meta_data->plain_part.major_version != SGX_FILE_MAJOR_VERSION)
 			break;
-	
+
 		sgx_aes_gcm_128bit_key_t zero_key_id = {0};
 		sgx_aes_gcm_128bit_key_t key = {0};
 		if (consttime_memequal(&file_meta_data->plain_part.key_id, &zero_key_id, sizeof(sgx_aes_gcm_128bit_key_t)) == 1)
 			break; // shared file - no monotonic counter
-		
+
 		sgx_key_request_t key_request = {0};
 		key_request.key_name = SGX_KEYSELECT_SEAL;
 		key_request.key_policy = SGX_KEYPOLICY_MRENCLAVE;
 		memcpy(&key_request.key_id, &file_meta_data->plain_part.key_id, sizeof(sgx_key_id_t));
-		
+
 		status = sgx_get_key(&key_request, &key);
 		if (status != SGX_SUCCESS)
-			break;		
+			break;
 
-		status = sgx_rijndael128GCM_decrypt(&key, 
+		status = sgx_rijndael128GCM_decrypt(&key,
 											file_meta_data->encrypted_part, sizeof(meta_data_encrypted_blob_t),
 											(uint8_t*)encrypted_part_plain,
 											file_meta_data->plain_part.meta_data_iv, SGX_AESGCM_IV_SIZE,
@@ -136,14 +136,14 @@ int32_t protected_fs_file::remove(const char* filename)
 		delete encrypted_part_plain;
 	}
 
-	if (file != NULL) 
+	if (file != NULL)
 		u_sgxprotectedfs_fclose(&result32, file);
 
 */
-	
+
 	// do the actual file removal
 	status = u_sgxprotectedfs_remove(&result32, filename);
-	if (status != SGX_SUCCESS) 
+	if (status != SGX_SUCCESS)
 	{
 		errno = status;
 		return 1;
@@ -232,7 +232,7 @@ int protected_fs_file::seek(int64_t new_offset, int origin)
 		}
 		break;
 
-	default: 
+	default:
 		break;
 	}
 
@@ -309,7 +309,7 @@ void protected_fs_file::clear_error()
 		}
 	}
 
-	if ((file_status == SGX_FILE_STATUS_MC_NOT_INCREMENTED) && 
+	if ((file_status == SGX_FILE_STATUS_MC_NOT_INCREMENTED) &&
 		(encrypted_part_plain.mc_value <= (UINT_MAX-2)))
 	{
 		uint32_t mc_value;
@@ -325,7 +325,7 @@ void protected_fs_file::clear_error()
 		}
 	}
 */
-	
+
 	if (file_status == SGX_FILE_STATUS_OK)
 	{
 		last_error = SGX_SUCCESS;
@@ -364,13 +364,13 @@ int32_t protected_fs_file::clear_cache()
 
 		assert(data != NULL);
 		assert(((file_data_node_t*)data)->need_writing == false); // need_writing is in the same offset in both node types
-		// for production - 
+		// for production -
 		if (data == NULL || ((file_data_node_t*)data)->need_writing == true)
 		{
 			sgx_thread_mutex_unlock(&mutex);
 			return 1;
 		}
-		
+
 		cache.remove_last();
 
 		// before deleting the memory, need to scrub the plain secrets
@@ -393,3 +393,7 @@ int32_t protected_fs_file::clear_cache()
 	return 0;
 }
 
+int32_t protected_fs_file::get_root_mac(sgx_aes_gcm_128bit_tag_t* mac) {
+    memcpy(mac, file_meta_data.plain_part.meta_data_gmac, sizeof(*mac));
+    return 0;
+}
