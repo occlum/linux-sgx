@@ -47,7 +47,7 @@ int32_t protected_fs_file::remove(const char* filename)
 	
 	// do the actual file removal
 	status = u_sgxprotectedfs_remove(&result32, filename);
-	if (status != SGX_SUCCESS) 
+	if (status != SGX_SUCCESS)
 	{
 		errno = status;
 		return 1;
@@ -129,7 +129,7 @@ int protected_fs_file::seek(int64_t new_offset, int origin)
 		}
 		break;
 
-	default: 
+	default:
 		break;
 	}
 
@@ -234,13 +234,13 @@ int32_t protected_fs_file::clear_cache()
 
 		assert(data != NULL);
 		assert(((file_data_node_t*)data)->need_writing == false); // need_writing is in the same offset in both node types
-		// for production - 
+		// for production -
 		if (data == NULL || ((file_data_node_t*)data)->need_writing == true)
 		{
 			sgx_thread_mutex_unlock(&mutex);
 			return 1;
 		}
-		
+
 		cache.remove_last();
 
 		// before deleting the memory, need to scrub the plain secrets
@@ -261,4 +261,9 @@ int32_t protected_fs_file::clear_cache()
 	sgx_thread_mutex_unlock(&mutex);
 
 	return 0;
+}
+
+int32_t protected_fs_file::get_root_mac(sgx_aes_gcm_128bit_tag_t* mac) {
+    memcpy(mac, file_meta_data.plain_part.meta_data_gmac, sizeof(*mac));
+    return 0;
 }

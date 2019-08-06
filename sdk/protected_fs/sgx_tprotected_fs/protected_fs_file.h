@@ -146,11 +146,11 @@ private:
 	};
 
 	meta_data_encrypted_t encrypted_part_plain; // encrypted part of meta data node, decrypted
-	
+
 	file_mht_node_t root_mht; // the root of the mht is always needed (for files bigger than 3KB)
 
 	FILE* file; // OS's FILE pointer
-	
+
 	open_mode_t open_mode;
 	uint8_t read_only;
 	int64_t offset; // current file position (user's view)
@@ -158,11 +158,11 @@ private:
 	uint32_t max_cache_page;
 
 	int64_t real_file_size;
-
+	bool integrity_only; // If true, no encryption, only MAC. Default: false.
 	bool need_writing; // flag
 	uint32_t last_error; // last operation error
 	protected_fs_status_e file_status;
-	
+
 	sgx_thread_mutex_t mutex;
 
 	uint8_t use_user_kdk_key;
@@ -171,7 +171,7 @@ private:
 	sgx_aes_gcm_128bit_key_t cur_key;
 	sgx_aes_gcm_128bit_key_t session_master_key;
 	uint32_t master_key_count;
-	
+
 	char recovery_filename[RECOVERY_FILE_MAX_LEN]; // might include full path to the file
 
 	lru_cache cache;
@@ -186,15 +186,15 @@ private:
 	bool file_recovery(const char* filename);
 	bool init_existing_file(const char* filename, const char* clean_filename, const sgx_aes_gcm_128bit_key_t* import_key);
 	bool init_new_file(const char* clean_filename);
-	
+
 	bool generate_secure_blob(sgx_aes_gcm_128bit_key_t* key, const char* label, uint64_t physical_node_number, sgx_aes_gcm_128bit_tag_t* output);
 	bool generate_secure_blob_from_user_kdk(bool restore);
 	bool init_session_master_key();
 	bool derive_random_node_key(uint64_t physical_node_number);
 	bool generate_random_meta_data_key();
 	bool restore_current_meta_data_key(const sgx_aes_gcm_128bit_key_t* import_key);
-	
-	
+
+
 	file_data_node_t* get_data_node();
 	file_data_node_t* read_data_node();
 	file_data_node_t* append_data_node();
@@ -211,7 +211,7 @@ private:
 	bool internal_flush(bool flush_to_disk);
 
 public:
-	protected_fs_file(const char* filename, const char* mode, const sgx_aes_gcm_128bit_key_t* import_key, const sgx_aes_gcm_128bit_key_t* kdk_key, const uint32_t cache_page);
+	protected_fs_file(const char* filename, const char* mode, const sgx_aes_gcm_128bit_key_t* import_key, const sgx_aes_gcm_128bit_key_t* kdk_key, bool integrity_only, const uint32_t cache_page);
 	~protected_fs_file();
 
 	size_t write(const void* ptr, size_t size, size_t count);
@@ -224,6 +224,7 @@ public:
 	int32_t clear_cache();
 	bool flush();
 	bool pre_close(sgx_key_128bit_t* key, bool import);
+	int32_t get_root_mac(sgx_aes_gcm_128bit_tag_t* root_mac);
 	static int32_t remove(const char* filename);
 };
 
