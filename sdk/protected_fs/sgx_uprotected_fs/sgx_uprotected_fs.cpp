@@ -58,7 +58,7 @@ void* u_sgxprotectedfs_exclusive_file_open(const char* filename, uint8_t read_on
 	int fd = -1;
 	mode_t mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
 	struct stat stat_st;
-	
+
 	memset(&stat_st, 0, sizeof(struct stat));
 
 	if (filename == NULL || strnlen(filename, 1) == 0)
@@ -99,7 +99,7 @@ void* u_sgxprotectedfs_exclusive_file_open(const char* filename, uint8_t read_on
 		assert(result == 0);
 		return NULL;
 	}
-	
+
 	// convert the file handle to standard 'C' API file pointer
 	f = fdopen(fd, read_only ? "rb" : "r+b");
 	if (f == NULL)
@@ -122,7 +122,7 @@ void* u_sgxprotectedfs_exclusive_file_open(const char* filename, uint8_t read_on
 uint8_t u_sgxprotectedfs_check_if_file_exists(const char* filename)
 {
 	struct stat stat_st;
-	
+
 	memset(&stat_st, 0, sizeof(struct stat));
 
 	if (filename == NULL || strnlen(filename, 1) == 0)
@@ -130,8 +130,8 @@ uint8_t u_sgxprotectedfs_check_if_file_exists(const char* filename)
 		DEBUG_PRINT("filename is NULL or empty\n");
 		return 1;
 	}
-	
-	return (stat(filename, &stat_st) == 0); 
+
+	return (stat(filename, &stat_st) == 0);
 }
 
 
@@ -247,7 +247,7 @@ int32_t u_sgxprotectedfs_fclose(void* f)
 		DEBUG_PRINT("fileno returned -1\n");
 	else
 		flock(fd, LOCK_UN);
-	
+
 	if ((result = fclose(file)) != 0)
 	{
 		if (errno != 0)
@@ -274,13 +274,13 @@ uint8_t u_sgxprotectedfs_fflush(void* f)
 		DEBUG_PRINT("file is NULL\n");
 		return 1;
 	}
-	
+
 	if ((result = fflush(file)) != 0)
 	{
 		DEBUG_PRINT("fflush returned %d\n", result);
 		return 1;
 	}
-	
+
 	return 0;
 }
 
@@ -302,7 +302,7 @@ int32_t u_sgxprotectedfs_remove(const char* filename)
 			return errno;
 		return -1;
 	}
-	
+
 	return 0;
 }
 
@@ -317,7 +317,7 @@ void* u_sgxprotectedfs_recovery_file_open(const char* filename)
 		DEBUG_PRINT("recovery filename is NULL or empty\n");
 		return NULL;
 	}
-	
+
 	for (int i = 0; i < MAX_FOPEN_RETRIES; i++)
 	{
 		f = fopen(filename, "wb");
@@ -330,7 +330,7 @@ void* u_sgxprotectedfs_recovery_file_open(const char* filename)
 		DEBUG_PRINT("fopen (%s) returned NULL\n", filename);
 		return NULL;
 	}
-	
+
 	return f;
 }
 
@@ -344,7 +344,7 @@ uint8_t u_sgxprotectedfs_fwrite_recovery_node(void* f, uint8_t* data, uint32_t d
 		DEBUG_PRINT("file is NULL\n");
 		return 1;
 	}
-		
+
 	// recovery nodes are written sequentially
 	size_t count = fwrite(data, 1, data_length, file);
 	if (count != data_length)
@@ -371,7 +371,7 @@ int32_t u_sgxprotectedfs_do_file_recovery(const char* filename, const char* reco
 	uint8_t* recovery_node = NULL;
 	uint32_t i = 0;
 
-	do 
+	do
 	{
 		if (filename == NULL || strnlen(filename, 1) == 0)
 		{
@@ -384,7 +384,7 @@ int32_t u_sgxprotectedfs_do_file_recovery(const char* filename, const char* reco
 			DEBUG_PRINT("recovery filename is NULL or empty\n");
 			return (int32_t)NULL;
 		}
-	
+
 		recovery_file = fopen(recovery_filename, "rb");
 		if (recovery_file == NULL)
 		{
@@ -402,7 +402,7 @@ int32_t u_sgxprotectedfs_do_file_recovery(const char* filename, const char* reco
 		}
 
 		file_size = ftello(recovery_file);
-	
+
 		if ((result = fseeko(recovery_file, 0, SEEK_SET)) != 0)
 		{
 			DEBUG_PRINT("fseeko returned %d\n", result);
@@ -445,7 +445,7 @@ int32_t u_sgxprotectedfs_do_file_recovery(const char* filename, const char* reco
 				err = ferror(recovery_file);
 				if (err != 0)
 					ret = err;
-				else if (errno != 0) 
+				else if (errno != 0)
 					ret = errno;
 				break;
 			}
@@ -466,7 +466,7 @@ int32_t u_sgxprotectedfs_do_file_recovery(const char* filename, const char* reco
 				err = ferror(source_file);
 				if (err != 0)
 					ret = err;
-				else if (errno != 0) 
+				else if (errno != 0)
 					ret = errno;
 				break;
 			}
@@ -503,6 +503,6 @@ int32_t u_sgxprotectedfs_do_file_recovery(const char* filename, const char* reco
 
 	if (ret == 0)
 		remove(recovery_filename);
-	
+
 	return ret;
 }
