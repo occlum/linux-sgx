@@ -36,7 +36,7 @@
 #include <errno.h>
 
 
-static SGX_FILE* sgx_fopen_internal(const char* filename, const char* mode, const sgx_key_128bit_t *auto_key, const sgx_key_128bit_t *kdk_key, const uint64_t cache_size)
+static SGX_FILE* sgx_fopen_internal(const char* filename, const char* mode, const sgx_key_128bit_t *auto_key, const sgx_key_128bit_t *kdk_key, bool integrity_only, const uint64_t cache_size)
 {
 	protected_fs_file* file = NULL;
 	uint32_t cache_page = 0;
@@ -53,7 +53,7 @@ static SGX_FILE* sgx_fopen_internal(const char* filename, const char* mode, cons
 	cache_page = (uint32_t) (cache_size / SE_PAGE_SIZE);
 
 	try {
-		file = new protected_fs_file(filename, mode, auto_key, kdk_key, cache_page);
+		file = new protected_fs_file(filename, mode, auto_key, kdk_key, integrity_only, cache_page);
 	}
 	catch (std::bad_alloc& e) {
 		(void)e; // remove warning
@@ -74,19 +74,24 @@ static SGX_FILE* sgx_fopen_internal(const char* filename, const char* mode, cons
 
 SGX_FILE* sgx_fopen_auto_key(const char* filename, const char* mode)
 {
-	return sgx_fopen_internal(filename, mode, NULL, NULL, DEFAULT_CACHE_SIZE);
+	return sgx_fopen_internal(filename, mode, NULL, NULL, false, DEFAULT_CACHE_SIZE);
 }
 
+SGX_FILE* sgx_fopen_integrity_only(const char* filename, const char* mode)
+{
+	sgx_key_128bit_t empty_key = {0};
+	return sgx_fopen_internal(filename, mode, NULL, &empty_key, true);
+}
 
 SGX_FILE* sgx_fopen(const char* filename, const char* mode, const sgx_key_128bit_t *key)
 {
-	return sgx_fopen_internal(filename, mode, NULL, key, DEFAULT_CACHE_SIZE);
+	return sgx_fopen_internal(filename, mode, NULL, key, false, DEFAULT_CACHE_SIZE);
 }
 
 
 SGX_FILE* SGXAPI sgx_fopen_ex(const char* filename, const char* mode, const sgx_key_128bit_t *key, const uint64_t cache_size)
 {
-	return sgx_fopen_internal(filename, mode, NULL, key, cache_size);
+	return sgx_fopen_internal(filename, mode, NULL, key, false, cache_size);
 }
 
 
@@ -160,7 +165,7 @@ int32_t sgx_feof(SGX_FILE* stream)
 {
 	if (stream == NULL)
 		return -1;
-	
+
 	protected_fs_file* file = (protected_fs_file*)stream;
 
 	return ((file->get_eof() == true) ? 1 : 0);
@@ -210,7 +215,7 @@ int32_t sgx_remove(const char* filename)
 
 int32_t sgx_fexport_auto_key(const char* filename, sgx_key_128bit_t *key)
 {
-	SGX_FILE* stream = sgx_fopen_internal(filename, "r", NULL, NULL, DEFAULT_CACHE_SIZE);
+	SGX_FILE* stream = sgx_fopen_internal(filename, "r", NULL, NULL, false, DEFAULT_CACHE_SIZE);
 	if (stream == NULL)
 		return 1;
 
@@ -220,7 +225,7 @@ int32_t sgx_fexport_auto_key(const char* filename, sgx_key_128bit_t *key)
 
 int32_t sgx_fimport_auto_key(const char* filename, const sgx_key_128bit_t *key)
 {
-	SGX_FILE* stream = sgx_fopen_internal(filename, "r+", key, NULL, DEFAULT_CACHE_SIZE);
+	SGX_FILE* stream = sgx_fopen_internal(filename, "r+", key, NULL, false, DEFAULT_CACHE_SIZE);
 	if (stream == NULL)
 		return 1;
 
@@ -236,4 +241,17 @@ int32_t sgx_fclear_cache(SGX_FILE* stream)
 	protected_fs_file* file = (protected_fs_file*)stream;
 
 	return file->clear_cache();
+}
+
+
+int32_t SGXAPI sgx_fget_mac(SGX_FILE* stream, sgx_aes_gcm_128bit_tag_t* mac)
+{
+	if (stream == NULL)
+		return 1;
+
+	protected_fs_file* file = (protected_fs_file*)stream;
+	if (file->flush() == false)
+		return 1;
+
+	return file->get_root_mac(mac);
 }

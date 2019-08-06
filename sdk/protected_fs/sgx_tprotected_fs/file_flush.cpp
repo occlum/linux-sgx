@@ -212,7 +212,7 @@ bool protected_fs_file::set_update_flag(bool flush_to_disk)
 	file_meta_data.plain_part.update_flag = 0; // turn it off in memory. at the end of the flush, when we'll write the meta-data to disk, this flag will also be cleared there.
 	if (status != SGX_SUCCESS || result32 != 0)
 	{
-		last_error = (status != SGX_SUCCESS) ? status : 
+		last_error = (status != SGX_SUCCESS) ? status :
 					 (result32 != -1) ? result32 : EIO;
 		return false;
 	}
@@ -280,8 +280,16 @@ bool protected_fs_file::update_all_data_and_mht_nodes()
 				gcm_crypto_data_t* gcm_crypto_data = &data_node->parent->plain.data_nodes_crypto[data_node->data_node_number % ATTACHED_DATA_NODES_COUNT];
 
 				// encrypt the data, this also saves the gmac of the operation in the mht crypto node
-				status = sgx_rijndael128GCM_encrypt(&cur_key, data_node->plain.data, NODE_SIZE, data_node->encrypted.cipher, 
-													empty_iv, SGX_AESGCM_IV_SIZE, NULL, 0, &gcm_crypto_data->gmac);
+				if(!integrity_only) {
+						status = sgx_rijndael128GCM_encrypt(&cur_key, data_node->plain.data, NODE_SIZE, data_node->encrypted.cipher,
+															empty_iv, SGX_AESGCM_IV_SIZE, NULL, 0, &gcm_crypto_data->gmac);
+				}
+				// calculate the MAC only
+				else {
+						status = sgx_rijndael128GCM_encrypt(&cur_key, NULL, 0, NULL,
+															empty_iv, SGX_AESGCM_IV_SIZE, data_node->plain.data, NODE_SIZE, &gcm_crypto_data->gmac);
+						memcpy(data_node->encrypted.cipher, data_node->plain.data, NODE_SIZE);
+				}
 				if (status != SGX_SUCCESS)
 				{
 					last_error = status;
@@ -333,9 +341,15 @@ bool protected_fs_file::update_all_data_and_mht_nodes()
 			mht_list.clear();
 			return false;
 		}
-
-		status = sgx_rijndael128GCM_encrypt(&cur_key, (const uint8_t*)&file_mht_node->plain, NODE_SIZE, file_mht_node->encrypted.cipher, 
-											empty_iv, SGX_AESGCM_IV_SIZE, NULL, 0, &gcm_crypto_data->gmac);
+		if(!integrity_only) {
+			status = sgx_rijndael128GCM_encrypt(&cur_key, (const uint8_t*)&file_mht_node->plain, NODE_SIZE, file_mht_node->encrypted.cipher,
+												empty_iv, SGX_AESGCM_IV_SIZE, NULL, 0, &gcm_crypto_data->gmac);
+		}
+		else {
+			status = sgx_rijndael128GCM_encrypt(&cur_key, NULL ,0, NULL,
+												empty_iv, SGX_AESGCM_IV_SIZE, (const uint8_t*)&file_mht_node->plain, NODE_SIZE, &gcm_crypto_data->gmac);
+			memcpy(file_mht_node->encrypted.cipher, (const uint8_t*)&file_mht_node->plain, NODE_SIZE);
+		}
 		if (status != SGX_SUCCESS)
 		{
 			mht_list.clear();
@@ -352,8 +366,15 @@ bool protected_fs_file::update_all_data_and_mht_nodes()
 	if (derive_random_node_key(root_mht.physical_node_number) == false)
 		return false;
 
-	status = sgx_rijndael128GCM_encrypt(&cur_key, (const uint8_t*)&root_mht.plain, NODE_SIZE, root_mht.encrypted.cipher, 
-										empty_iv, SGX_AESGCM_IV_SIZE, NULL, 0, &encrypted_part_plain.mht_gmac);
+	if(!integrity_only) {
+		status = sgx_rijndael128GCM_encrypt(&cur_key, (const uint8_t*)&root_mht.plain, NODE_SIZE, root_mht.encrypted.cipher,
+											empty_iv, SGX_AESGCM_IV_SIZE, NULL, 0, &encrypted_part_plain.mht_gmac);
+	}
+	else {
+		status = sgx_rijndael128GCM_encrypt(&cur_key, NULL, 0, NULL,
+											empty_iv, SGX_AESGCM_IV_SIZE, (const uint8_t*)&root_mht.plain, NODE_SIZE, &encrypted_part_plain.mht_gmac);
+		memcpy(root_mht.encrypted.cipher, (const uint8_t*)&root_mht.plain, NODE_SIZE);
+	}
 	if (status != SGX_SUCCESS)
 	{
 		last_error = status;
@@ -369,20 +390,31 @@ bool protected_fs_file::update_all_data_and_mht_nodes()
 bool protected_fs_file::update_meta_data_node()
 {
 	sgx_status_t status;
-	
+
 	// randomize a new key, saves the key _id_ in the meta data plain part
 	if (generate_random_meta_data_key() != true)
 	{
 		// last error already set
 		return false;
 	}
-		
-	// encrypt meta data encrypted part, also updates the gmac in the meta data plain part
-	status = sgx_rijndael128GCM_encrypt(&cur_key, 
-										(const uint8_t*)&encrypted_part_plain, sizeof(meta_data_encrypted_t), (uint8_t*)&file_meta_data.encrypted_part, 
-										empty_iv, SGX_AESGCM_IV_SIZE, 
-										NULL, 0, 
-										&file_meta_data.plain_part.meta_data_gmac);
+
+	if (!integrity_only) {
+		// encrypt meta data encrypted part, also updates the gmac in the meta data plain part
+		status = sgx_rijndael128GCM_encrypt(&cur_key,
+					(const uint8_t*)&encrypted_part_plain, sizeof(meta_data_encrypted_t), (uint8_t*)&file_meta_data.encrypted_part,
+					empty_iv, SGX_AESGCM_IV_SIZE,
+					NULL, 0,
+					&file_meta_data.plain_part.meta_data_gmac);
+	}
+	else {
+		status = sgx_rijndael128GCM_encrypt(&cur_key,
+					NULL, 0, NULL,
+					empty_iv, SGX_AESGCM_IV_SIZE,
+					(const uint8_t*)&encrypted_part_plain, sizeof(meta_data_encrypted_t),
+					&file_meta_data.plain_part.meta_data_gmac);
+		memcpy((uint8_t*)&file_meta_data.encrypted_part, (const uint8_t*)&encrypted_part_plain, sizeof(meta_data_encrypted_t));
+	}
+
 	if (status != SGX_SUCCESS)
 	{
 		last_error = status;
@@ -435,7 +467,7 @@ bool protected_fs_file::write_all_changes_to_disk(bool flush_to_disk)
 			status = u_sgxprotectedfs_fwrite_node(&result32, file, node_number, data_to_write, NODE_SIZE);
 			if (status != SGX_SUCCESS || result32 != 0)
 			{
-				last_error = (status != SGX_SUCCESS) ? status : 
+				last_error = (status != SGX_SUCCESS) ? status :
 							 (result32 != -1) ? result32 : EIO;
 				return false;
 			}
@@ -457,7 +489,7 @@ bool protected_fs_file::write_all_changes_to_disk(bool flush_to_disk)
 		status = u_sgxprotectedfs_fwrite_node(&result32, file, 1, (uint8_t*)&root_mht.encrypted, NODE_SIZE);
 		if (status != SGX_SUCCESS || result32 != 0)
 		{
-			last_error = (status != SGX_SUCCESS) ? status : 
+			last_error = (status != SGX_SUCCESS) ? status :
 						 (result32 != -1) ? result32 : EIO;
 			return false;
 		}
@@ -468,7 +500,7 @@ bool protected_fs_file::write_all_changes_to_disk(bool flush_to_disk)
 	status = u_sgxprotectedfs_fwrite_node(&result32, file, 0, (uint8_t*)&file_meta_data, NODE_SIZE);
 	if (status != SGX_SUCCESS || result32 != 0)
 	{
-		last_error = (status != SGX_SUCCESS) ? status : 
+		last_error = (status != SGX_SUCCESS) ? status :
 					 (result32 != -1) ? result32 : EIO;
 		return false;
 	}
