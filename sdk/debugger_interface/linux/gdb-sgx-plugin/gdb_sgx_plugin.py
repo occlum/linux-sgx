@@ -56,6 +56,7 @@ KB_SIZE = 1024
 ENCLAVE_INFO_SIZE = 8 * 7 + 2 * 4
 INFO_FMT = 'QQQIIQQQQ'
 ENCLAVES_ADDR = {}
+OCCLUM_GDB = 0
 
 # The following definitions should strictly align with the struct of
 # tcs_t
@@ -174,6 +175,8 @@ class enclave_info(object):
         gdb.execute(gdb_cmd, False, True)
         global ENCLAVES_ADDR
         ENCLAVES_ADDR[self.start_addr] = gdb_cmd.split()[2]
+        if OCCLUM_GDB == 1:
+            GetOcclumElfBreakpoint()
         return 0
 
     def get_peak_heap_used(self):
@@ -691,6 +694,62 @@ class GetTCSBreakpoint(gdb.Breakpoint):
             gdb.execute(gdb_cmd, False, True)
         return False
 
+class GetMuslLoadLibraryReturnBreakpoint(gdb.FinishBreakpoint):
+    def __init__(self):
+        gdb.FinishBreakpoint.__init__ (self, gdb.newest_frame(), internal=1)
+        self.silent = True
+
+    def stop(self):
+        dso_addr_ = gdb.parse_and_eval("$rax")
+        dso_addr  = ctypes.c_uint64(dso_addr_).value
+        string = read_from_memory(dso_addr, 16)
+        elf_start_addr, elf_name_addr = struct.unpack('QQ', string)
+        # Assume the file name length is less than 512
+        string = read_from_memory(elf_name_addr, 512)
+        elf_name = "image"
+        for i in range(512):
+            if string[i] != struct.pack("B", 0):
+                elf_name += string[i].decode('ascii')
+            else:
+                break
+        gdb_cmd = load_symbol_cmd.GetLoadSymbolCommand(elf_name, str(elf_start_addr))
+        if gdb_cmd == -1:
+            return 0
+        gdb.execute(gdb_cmd, False, True)
+        return False
+
+class GetMuslLoadLibraryBreakpoint(gdb.Breakpoint):
+    def __init__(self):
+        gdb.Breakpoint.__init__ (self, spec="load_library", internal=1)
+
+    def stop(self):
+        GetMuslLoadLibraryReturnBreakpoint()
+        return False
+
+class GetOcclumElfBreakpoint(gdb.Breakpoint):
+    def __init__(self):
+        gdb.Breakpoint.__init__ (self, spec="occlum_gdb_hook_load_elf", internal=1)
+
+    def stop(self):
+        addr_ = gdb.parse_and_eval("$rdi")
+        addr = ctypes.c_uint64(addr_).value
+        file_name_ = gdb.parse_and_eval("$rsi")
+        file_name = ctypes.c_uint64(file_name_).value
+        file_name_len_ = gdb.parse_and_eval("$rdx")
+        file_name_len = ctypes.c_uint64(file_name_len_).value
+        file_string = read_from_memory(file_name, file_name_len)
+        file_path = "image" + \
+                    struct.unpack('{length}s'.format(length=file_name_len), \
+                                    file_string[0:file_name_len])[0].decode("ascii")
+        gdb_cmd = load_symbol_cmd.GetLoadSymbolCommand(file_path, str(addr))
+        if gdb_cmd == -1:
+            return 0
+        print (gdb_cmd)
+        gdb.execute(gdb_cmd, False, True)
+        GetMuslLoadLibraryBreakpoint()
+        return False
+
+
 def sgx_debugger_init():
     print ("detect urts is loaded, initializing")
     global SIZE
@@ -702,6 +761,9 @@ def sgx_debugger_init():
             if bp.location == "sgx_debug_load_state_add_element":
                 inited = 1
                 break
+    if os.getenv("OCCLUM_GDB") == "1":
+        global OCCLUM_GDB
+        OCCLUM_GDB = 1
     if inited == 0:
         detach_enclaves()
         gdb.execute("source gdb_sgx_cmd", False, True)
