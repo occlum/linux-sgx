@@ -21,4 +21,4 @@ cd ${SCRIPT_PATH}
 make psw
 make psw_install_pkg
 cd /opt/intel
-sudo ${SCRIPT_PATH}/linux/installer/bin/sgx_linux_x64_psw_*.bin
+sudo ${SCRIPT_PATH}/linux/installer/bin/sgx_linux_x64_psw_*.bin --no-start-aesm
