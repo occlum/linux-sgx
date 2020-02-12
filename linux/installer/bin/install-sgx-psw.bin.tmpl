@@ -125,7 +125,7 @@ make install
 
 popd
 
-${SGX_PACKAGES_PATH}/${PSW_PKG_NAME}/scripts/install.sh
+${SGX_PACKAGES_PATH}/${PSW_PKG_NAME}/scripts/install.sh "$@"
 
 rm -fr ${PSW_TEMP_FOLDER}
 

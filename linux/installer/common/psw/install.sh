@@ -93,19 +93,31 @@ elif [ -d /etc/init/ ]; then
     rm -f $AESM_PATH/aesmd.service
     /sbin/initctl reload-configuration
     retval=$?
+fi
+
+if [ "X$retval" != "X" ]; then
+    if [ $retval -ne 0 ]; then
+        echo " failed."
+        echo "Error: Failed to install $AESMD_NAME."
+        exit 6
+    fi
+    echo " done."
 else
-    echo " failed."
-    echo "Unsupported platform - neither systemctl nor initctl is found."
-    exit 5
+    # Check the parameter
+    for param; do
+        if [ "${param}" == "--no-start-aesm" ]; then
+            NO_START_AESM=true
+            break
+        fi
+    done
+
+    if [ "${NO_START_AESM}" == true ]; then
+        echo "Warning: No systemctl/initctl to start AESM. You may start AESM manually, e.g., /opt/intel/sgxpsw/aesm/aesm_service --no-daemon"
+    else
+        echo "Error: Unsupported platform - neither systemctl nor initctl is found."
+        exit 5
+    fi
 fi
-
-if test $retval -ne 0; then
-    echo "$rcmngr failed to install $AESMD_NAME."
-    exit 6
-fi
-
-echo " done."
-
 
 cat > $PSW_DST_PATH/uninstall.sh <<EOF
 #!/usr/bin/env bash
