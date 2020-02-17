@@ -76,8 +76,8 @@ TINST_OBJS   := t_instructions.o \
 
 LOWLIB_OBJS  := lowlib.o
 
-TLS_OBJS     := get_tcs.o \
-                restore_tls.o
+# TLS_OBJS     := get_tcs.o \
+#                 restore_tls.o
 
 TLDR_ASM_OBJS := trts_pic.o \
                 metadata_sec.o \
@@ -100,8 +100,8 @@ vpath %.c   $(TLS_DIR):$(TLDR_DIR)
 all: $(LIBTRTS) | $(BUILD_DIR)
 	$(CP) $< $|
 
-$(LIBTRTS): $(TRTS_OBJS) $(TINST_OBJS) $(LOWLIB_OBJS) $(TLS_OBJS) $(TLDR_OBJS) 
-	$(AR) rcsD $@ $(TRTS_OBJS) $(TINST_OBJS) $(LOWLIB_OBJS) $(TLS_OBJS) $(TLDR_OBJS)
+$(LIBTRTS): $(TRTS_OBJS) $(TINST_OBJS) $(LOWLIB_OBJS) $(TLDR_OBJS) 
+	$(AR) rcsD $@ $(TRTS_OBJS) $(TINST_OBJS) $(LOWLIB_OBJS) $(TLDR_OBJS)
 
 # ------------------------------------------------------------
 $(TRTS1_OBJS):    CPPFLAGS += -I$(COMMON_DIR)/inc/tlibc \
@@ -119,9 +119,9 @@ $(TINST_OBJS):   CPPFLAGS += -I$(SIM_DIR)/assembly/    \
                              -I$(LINUX_SDK_DIR)/selib/ \
                              -O0
 
-$(TLS_OBJS):     CPPFLAGS += -I$(SIM_DIR)/assembly/ \
-                             -I$(SIM_DIR)/assembly/linux \
-                             -I$(SIM_DIR)/uinst/
+# $(TLS_OBJS):     CPPFLAGS += -I$(SIM_DIR)/assembly/ \
+#                              -I$(SIM_DIR)/assembly/linux \
+#                              -I$(SIM_DIR)/uinst/
 
 $(TLDR_C_OBJS):  CPPFLAGS += -I$(COMMON_DIR)/inc/internal/linux/ \
                              -I$(SIM_DIR)/assembly/
