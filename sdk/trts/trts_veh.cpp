@@ -454,8 +454,15 @@ extern "C" sgx_status_t trts_handle_exception(void *tcs)
         goto default_handler;
     }
  
+<<<<<<< HEAD
     if ((TD2TCS(thread_data) != tcs) 
             || (((thread_data->first_ssa_gpr)&(~0xfff)) - ROUND_TO_PAGE(get_xsave_size() + sizeof(ssa_gpr_t))) != (uintptr_t)tcs) {
+=======
+    // This check conflict with occlum design. Since it is defence in depth, just remove it 
+    //if ((TD2TCS(thread_data) != tcs) 
+    //        || (((thread_data->first_ssa_gpr)&(~0xfff)) - SE_PAGE_SIZE) != (uintptr_t)tcs) {
+    if ((((thread_data->first_ssa_gpr)&(~0xfff)) - SE_PAGE_SIZE) != (uintptr_t)tcs) {
+>>>>>>> Support handling exceptions in Occlum's user space
         goto default_handler;
     }
 
