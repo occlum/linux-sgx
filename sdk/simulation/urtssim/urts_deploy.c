@@ -69,4 +69,5 @@ void sgx_thread_set_multiple_untrusted_events_ocall(){};
 void sgx_thread_set_untrusted_event_ocall(){};
 void sgx_thread_setwait_untrusted_events_ocall(){};
 void sgx_thread_wait_untrusted_event_ocall(){};
+void sgx_thread_wait_untrusted_event_timeout_ocall(){};
 

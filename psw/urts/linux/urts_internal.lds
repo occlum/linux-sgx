@@ -6,6 +6,7 @@
         sgx_ecall;
         sgx_ecall_switchless;
         sgx_thread_wait_untrusted_event_ocall;
+        sgx_thread_wait_untrusted_event_timeout_ocall;
         sgx_thread_set_untrusted_event_ocall;
         sgx_thread_setwait_untrusted_events_ocall;
         sgx_thread_set_multiple_untrusted_events_ocall;

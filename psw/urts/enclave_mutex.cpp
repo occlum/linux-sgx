@@ -52,6 +52,22 @@ extern "C" int sgx_thread_wait_untrusted_event_ocall(const void *self)
     return SGX_SUCCESS;
 }
 
+extern "C" int sgx_thread_wait_untrusted_event_timeout_ocall(const void *self, int64_t sec, int64_t nsec, int *err)
+{
+    if (self == NULL)
+        return SGX_ERROR_INVALID_PARAMETER;
+
+    se_handle_t hevent = CEnclavePool::instance()->get_event(self);
+    if (hevent == NULL)
+        return SE_ERROR_MUTEX_GET_EVENT;
+
+    struct timespec ts = {.tv_sec = sec, .tv_nsec = nsec};
+    if (SE_MUTEX_SUCCESS != se_event_timeout_wait(hevent, &ts, err))
+        return SE_ERROR_MUTEX_WAIT_EVENT;
+
+    return SGX_SUCCESS;
+}
+
 /* set untrusted event */
 extern "C" int sgx_thread_set_untrusted_event_ocall(const void *waiter)
 {

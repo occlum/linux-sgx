@@ -36,6 +36,9 @@ enclave {
         /* Go outside and wait on my untrusted event */
         [cdecl] int sgx_thread_wait_untrusted_event_ocall([user_check] const void *self);
 
+        /* Go outside and wait on my untrusted event with timeout */
+        [cdecl] int sgx_thread_wait_untrusted_event_timeout_ocall([user_check] const void *self, int64_t sec, int64_t nsec, [out] int* err);
+
         /* Wake a thread waiting on its untrusted event */
         [cdecl] int sgx_thread_set_untrusted_event_ocall([user_check] const void *waiter);
 

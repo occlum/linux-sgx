@@ -34,6 +34,8 @@
 
 # include <stdlib.h>
 # include <unistd.h>
+# include <errno.h>
+# include <time.h>
 # include <sys/syscall.h>
 typedef void * se_handle_t;
 
@@ -52,6 +54,7 @@ se_handle_t SGXAPI se_event_init(void);
 void SGXAPI se_event_destroy(se_handle_t);
 
 int SGXAPI se_event_wait(se_handle_t);
+int SGXAPI se_event_timeout_wait(se_handle_t, const struct timespec *, int *);
 int SGXAPI se_event_wake(se_handle_t);
 
 #ifdef __cplusplus
