@@ -57,6 +57,23 @@ int se_event_wait(se_handle_t se_event)
     return SE_MUTEX_SUCCESS;
 }
 
+int se_event_timeout_wait(se_handle_t se_event, const struct timespec *ts, int *err)
+{
+    int ret = 0;
+
+    if (se_event == NULL || err == NULL)
+        return SE_MUTEX_INVALID;
+
+    if (__sync_fetch_and_add((int*)se_event, -1) == 0) {
+        ret = (int)syscall(__NR_futex, se_event, FUTEX_WAIT, -1, ts, NULL, 0);
+        __sync_val_compare_and_swap((int*)se_event, -1, 0);
+    }
+    *err = ret < 0 ? errno : 0;
+
+    return SE_MUTEX_SUCCESS;
+}
+
+
 /*
  * timeout: Second
 */
