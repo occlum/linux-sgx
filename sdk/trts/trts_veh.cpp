@@ -180,6 +180,8 @@ int sgx_unregister_exception_handler(void *handler)
     return status;
 }
 
+static bool is_standard_exception(uintptr_t);
+
 // continue_execution(sgx_exception_info_t *info):
 //      try to restore the thread context saved in info to current execution context.
 extern "C" __attribute__((regparm(1))) void continue_execution(sgx_exception_info_t *info);
@@ -197,6 +199,7 @@ extern "C" __attribute__((regparm(1))) void internal_handle_exception(sgx_except
     uintptr_t *nhead = NULL;
     uintptr_t *ntmp = NULL;
     uintptr_t xsp = 0;
+    bool standard_exception = true;
 
     if (thread_data->exception_flag < 0)
         goto failed_end;
@@ -259,11 +262,13 @@ extern "C" __attribute__((regparm(1))) void internal_handle_exception(sgx_except
         size -= sizeof(sgx_exception_handler_t);
     }
 
+    standard_exception = is_standard_exception(info->cpu_context.REG(ip));
+
     // call default handler
     // ignore invalid return value, treat to EXCEPTION_CONTINUE_SEARCH
     // check SP to be written on SSA is pointing to the trusted stack
     xsp = info->cpu_context.REG(sp);
-    if (!is_valid_sp(xsp))
+    if (standard_exception && !is_valid_sp(xsp))
     {
         goto failed_end;
     }
@@ -309,6 +314,7 @@ extern "C" sgx_status_t trts_handle_exception(void *tcs)
     sgx_exception_info_t *info = NULL;
     uintptr_t sp, *new_sp = NULL;
     size_t size = 0;
+    bool standard_exception = true;
 
     if ((thread_data == NULL) || (tcs == NULL)) goto default_handler;
     if (check_static_stack_canary(tcs) != 0)
@@ -323,18 +329,32 @@ extern "C" sgx_status_t trts_handle_exception(void *tcs)
     if(thread_data->exception_flag == -1) {
         goto default_handler;
     }
- 
-    // This check conflict with occlum design. Since it is defence in depth, just remove it 
-    //if ((TD2TCS(thread_data) != tcs) 
-    //        || (((thread_data->first_ssa_gpr)&(~0xfff)) - SE_PAGE_SIZE) != (uintptr_t)tcs) {
-    if ((((thread_data->first_ssa_gpr)&(~0xfff)) - SE_PAGE_SIZE) != (uintptr_t)tcs) {
+
+    if (TD2TCS(thread_data) != tcs || (((thread_data->first_ssa_gpr) & (~0xfff)) - SE_PAGE_SIZE) != (uintptr_t)tcs)
+    {
         goto default_handler;
     }
 
     // no need to check the result of ssa_gpr because thread_data is always trusted
     ssa_gpr = reinterpret_cast<ssa_gpr_t *>(thread_data->first_ssa_gpr);
-    
-    sp = ssa_gpr->REG(sp);
+
+    // The point of differentiating the two types of exceptions is that when handling an exception, we must choose a stack that is suitable for the type of the exception.
+    // For standard exceptions, we can just use the stacks managed by SGX SDK;
+    // but, for non-standard exceptions, we cannot make any assumption about how the dynamically-loaded code uses stack--- it may choose an arbitrary memory region as its stack.
+    // Thus, when handling non-standard exceptions, we use a special, SDK-reserved memory region as the stack.
+    standard_exception = is_standard_exception(ssa_gpr->REG(ip));
+
+    if (!standard_exception)
+    {
+        // The bottom 2 pages are used as stack to handle the non-standard exceptions.
+        // User should take responsibility to confirm the stack is not corrupted.
+        sp = thread_data->stack_limit_addr + SE_PAGE_SIZE*2;
+    }
+    else
+    {
+        sp = ssa_gpr->REG(sp);
+    }
+
     if(!is_stack_addr((void*)sp, 0))  // check stack overrun only, alignment will be checked after exception handled
     {
         g_enclave_state = ENCLAVE_CRASHED;
@@ -444,4 +464,24 @@ extern "C" sgx_status_t trts_handle_exception(void *tcs)
 default_handler:
     g_enclave_state = ENCLAVE_CRASHED;
     return SGX_ERROR_ENCLAVE_CRASHED;
+}
+
+uintptr_t enclave_code_start_address = 0;
+size_t enclave_code_size = 0;
+
+// Exceptions, according to their sources, can be categorized into two types: standard exceptions and non-standard exceptions.
+// Standard exceptions are those triggered by the code of SGX SDK itself or the app code that statically linked to SGX SDK.
+// Non-standard exceptions are those triggered by dynamically-loaded code.
+static bool is_standard_exception(uintptr_t xip)
+{
+    assert(enclave_code_start_address != 0);
+    assert(enclave_code_size != 0);
+
+    if (xip >= enclave_code_start_address &&
+        xip < (enclave_code_start_address + enclave_code_size))
+    {
+        return true;
+    }
+
+    return false;
 }

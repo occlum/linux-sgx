@@ -74,7 +74,8 @@ extern sgx_status_t pcl_entry(void* enclave_base,void* ms) __attribute__((weak))
 extern "C" int init_enclave(void *enclave_base, void *ms) __attribute__((section(".nipx")));
 
 extern "C" int rsrv_mem_init(void *_rsrv_mem_base, size_t _rsrv_mem_size, size_t _rsrv_mem_min_size);
-
+extern uintptr_t enclave_code_start_address;
+extern size_t enclave_code_size;
 // init_enclave()
 //      Initialize enclave.
 // Parameters:
@@ -205,7 +206,7 @@ extern "C" int init_enclave(void *enclave_base, void *ms)
         return -1;
     }
 
-    return 0;
+    return get_first_executable_segment_info(enclave_base, &enclave_code_start_address, &enclave_code_size);
 }
 
 #ifndef SE_SIM
