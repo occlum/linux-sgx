@@ -86,6 +86,8 @@ extern "C" int init_rts_emas(size_t rts_base, layout_t *start, layout_t *end);
 extern "C" int sgx_mm_init(size_t, size_t);
 extern "C" int emalloc_init_with_reserved_mem(size_t);
 #endif
+extern uintptr_t enclave_code_start_address;
+extern size_t enclave_code_size;
 // init_enclave()
 //      Initialize enclave.
 // Parameters:
@@ -233,7 +235,7 @@ extern "C" int init_enclave(void *enclave_base, void *ms)
 
 
 
-    return 0;
+    return get_first_executable_segment_info(enclave_base, &enclave_code_start_address, &enclave_code_size);
 }
 
 extern size_t rsrv_mem_min_size;

@@ -52,6 +52,8 @@
 #include "trts_util.h"
 #include "trts_shared_constants.h"
 #include "se_cdefs.h"
+#include "sgx_memset_s.h"
+#include "sgx_interrupt.h"
 #include "emm_private.h"
 #include "sgx_mm_rt_abstraction.h"
 #include "sgx_trts_aex.h"
@@ -76,6 +78,8 @@ extern "C" sgx_status_t sgx_apply_mitigations(const sgx_exception_info_t *);
 extern uint16_t aex_notify_c3_cache[2048];
 extern uint8_t *__ct_mitigation_ret;
 
+#define XSAVE_PKRU_OFFSET   (2688)
+#define PKRU_LIBOS          (0x0)
 
 // sgx_register_exception_handler()
 //      register a custom exception handler
@@ -192,6 +196,7 @@ int sgx_unregister_exception_handler(void *handler)
 
 extern "C" __attribute__((regparm(1))) void second_phase(sgx_exception_info_t *info, 
     void *new_sp, void *second_phase_handler_addr);
+static bool is_standard_exception(uintptr_t);
 
 // continue_execution(sgx_exception_info_t *info):
 // try to restore the thread context saved in info to current execution context.
@@ -292,6 +297,7 @@ extern "C" __attribute__((regparm(1))) void internal_handle_exception(sgx_except
     uintptr_t *nhead = NULL;
     uintptr_t *ntmp = NULL;
     uintptr_t xsp = 0;
+    bool standard_exception = true;
 
     // AEX Notify allows this handler to handle interrupts
     if (info == NULL) {
@@ -374,11 +380,13 @@ extern "C" __attribute__((regparm(1))) void internal_handle_exception(sgx_except
         size -= sizeof(sgx_exception_handler_t);
     }
 
+    standard_exception = is_standard_exception(info->cpu_context.REG(ip));
+
     // call default handler
     // ignore invalid return value, treat to EXCEPTION_CONTINUE_SEARCH
     // check SP to be written on SSA is pointing to the trusted stack
     xsp = info->cpu_context.REG(sp);
-    if (!is_valid_sp(xsp))
+    if (standard_exception && !is_valid_sp(xsp))
     {
         goto failed_end;
     }
@@ -424,66 +432,79 @@ static int expand_stack_by_pages(void *start_addr, size_t page_count)
 extern "C" const char Lereport_inst;
 extern "C" const char Leverifyreport2_inst;
 
-// trts_handle_exception(void *tcs)
+// trts_handle_exception(void *tcs, outside_exitinfo_t *outside_info)
 //      the entry point for the exceptoin handling
 // Parameter
 //      the pointer of TCS
+//      the pointer of extra info about exception from outside the enclave
 // Return Value
 //      none zero - success
-extern "C" sgx_status_t trts_handle_exception(void *tcs)
+//              0 - fail
+extern "C" sgx_status_t trts_handle_exception(void *tcs, outside_exitinfo_t *u_outside_info)
 {
     thread_data_t *thread_data = get_thread_data();
     ssa_gpr_t *ssa_gpr = NULL;
     sgx_exception_info_t *info = NULL;
     uintptr_t sp_u, sp, *new_sp = NULL;
+    uintptr_t first_ssa_base = 0, pkru_base = 0;
+    uint32_t *pkru_ptr = NULL;
     size_t size = 0;
     uint8_t *ssa_xsave = NULL;
     bool is_exception_handled = false;
+    bool standard_exception = true;
 
     if ((thread_data == NULL) || (tcs == NULL)) goto default_handler;
     if (check_static_stack_canary(tcs) != 0)
         goto default_handler;
- 
+
     if(get_enclave_state() != ENCLAVE_INIT_DONE)
     {
         goto default_handler;
     }
-    
+
     // check if the exception is raised from 2nd phrase
     if(thread_data->exception_flag == -1) {
         goto default_handler;
     }
  
-<<<<<<< HEAD
     if ((TD2TCS(thread_data) != tcs) 
             || (((thread_data->first_ssa_gpr)&(~0xfff)) - ROUND_TO_PAGE(get_xsave_size() + sizeof(ssa_gpr_t))) != (uintptr_t)tcs) {
-=======
-    // This check conflict with occlum design. Since it is defence in depth, just remove it 
-    //if ((TD2TCS(thread_data) != tcs) 
-    //        || (((thread_data->first_ssa_gpr)&(~0xfff)) - SE_PAGE_SIZE) != (uintptr_t)tcs) {
-    if ((((thread_data->first_ssa_gpr)&(~0xfff)) - SE_PAGE_SIZE) != (uintptr_t)tcs) {
->>>>>>> Support handling exceptions in Occlum's user space
         goto default_handler;
     }
 
     // no need to check the result of ssa_gpr because thread_data is always trusted
     ssa_gpr = reinterpret_cast<ssa_gpr_t *>(thread_data->first_ssa_gpr);
 
-    // The unstrusted RSP should never point inside the enclave
-    sp_u = ssa_gpr->REG(sp_u);
-    if (!sgx_is_outside_enclave((void *)sp_u, sizeof(sp_u)))
-    {
-        set_enclave_state(ENCLAVE_CRASHED);
-        return SGX_ERROR_STACK_OVERRUN;
-    }
+    // The point of differentiating the two types of exceptions is that when handling an exception, we must choose a stack that is suitable for the type of the exception.
+    // For standard exceptions, we can just use the stacks managed by SGX SDK;
+    // but, for non-standard exceptions, we cannot make any assumption about how the dynamically-loaded code uses stack--- it may choose an arbitrary memory region as its stack.
+    // Thus, when handling non-standard exceptions, we use a special, SDK-reserved memory region as the stack.
+    standard_exception = is_standard_exception(ssa_gpr->REG(ip));
 
-    // The untrusted and trusted RSPs cannot be the same, unless
-    // an exception happened before the enclave setup the trusted stack
-    sp = ssa_gpr->REG(sp);
-    if (sp_u == sp)
+    if (!standard_exception)
     {
-        set_enclave_state(ENCLAVE_CRASHED);
-        return SGX_ERROR_STACK_OVERRUN;
+        // The bottom 2 pages are used as stack to handle the non-standard exceptions.
+        // User should take responsibility to confirm the stack is not corrupted.
+        sp = thread_data->stack_limit_addr + SE_PAGE_SIZE*2;
+    }
+    else
+    {
+        // The unstrusted RSP should never point inside the enclave
+        sp_u = ssa_gpr->REG(sp_u);
+        if (!sgx_is_outside_enclave((void *)sp_u, sizeof(sp_u)))
+        {
+            set_enclave_state(ENCLAVE_CRASHED);
+            return SGX_ERROR_STACK_OVERRUN;
+        }
+
+        // The untrusted and trusted RSPs cannot be the same, unless
+        // an exception happened before the enclave setup the trusted stack
+        sp = ssa_gpr->REG(sp);
+        if (sp_u == sp)
+        {
+            set_enclave_state(ENCLAVE_CRASHED);
+            return SGX_ERROR_STACK_OVERRUN;
+        }
     }
 
     if(!is_stack_addr((void*)sp, 0))  // check stack overrun only, alignment will be checked after exception handled
@@ -571,19 +592,55 @@ extern "C" sgx_status_t trts_handle_exception(void *tcs)
         goto handler_end;
     }
 
-    if(g_aexnotify_supported == 0 && ssa_gpr->exit_info.valid != 1)
+    if (g_aexnotify_supported == 0)
     {
-        // exception handlers are not allowed to call in a non-exception state
-        // add aexnotify check here to skip the case of interrupts
-        goto default_handler;
+        // If no hardware exception, we try to use outside_info to do exception simulation
+        if (ssa_gpr->exit_info.valid != 1 && u_outside_info != NULL && (uintptr_t)u_outside_info != (uintptr_t)-1)
+        {
+            if (!sgx_is_outside_enclave((void*)u_outside_info, sizeof(*u_outside_info)))
+            {   // looks like an attack
+                goto default_handler;
+            }
+
+            // Copy into enclave to prevent TOCTTOU attack
+            outside_exitinfo_t outside_info = *u_outside_info;
+
+            if (outside_info.vector == SGX_EXCEPTION_VECTOR_PF) {
+                ssa_gpr->exit_info.vector = SGX_EXCEPTION_VECTOR_PF;
+                // Distinguish hardware exceptions from simulated exceptions
+                ssa_gpr->exit_info.exit_type = SGX_EXCEPTION_SIMULATED;
+
+                misc_exinfo_t* exinfo = (misc_exinfo_t*)((uint64_t)ssa_gpr - (uint64_t)MISC_BYTE_SIZE);
+                memset_s(exinfo, sizeof(*exinfo), 0, sizeof(*exinfo));
+                exinfo->maddr = outside_info.addr;
+                exinfo->errcd = outside_info.err_flag & PF_ERR_FLAG_MASK;
+
+                ssa_gpr->exit_info.valid = 1;
+            }
+        }
+
+        if(ssa_gpr->exit_info.valid != 1)
+        {   // exception handlers are not allowed to call in a non-exception state
+            goto default_handler;
+        }
     }
+
 handler_end:
+    ssa_xsave = (uint8_t*)ROUND_TO_PAGE(thread_data->first_ssa_gpr) - ROUND_TO_PAGE(get_xsave_size() + sizeof(ssa_gpr_t));
+    if (!standard_exception && is_pkru_enabled())
+    {
+        // When handling non-standard exceptions, the PKRU saved in SSA XSAVE area can be PKRU_USER.
+        // We need to update PKRU to PKRU_LIBOS, ensuring LibOS has enough access rights at `internal_handle_exception()`.
+        pkru_base = (uintptr_t)ssa_xsave + XSAVE_PKRU_OFFSET;
+        pkru_ptr = (uint32_t *)pkru_base;
+        *pkru_ptr = PKRU_LIBOS;
+    }
+
     // initialize the info with SSA[0]
     info->exception_valid = is_exception_handled ? 0 : ssa_gpr->exit_info.valid;
     info->exception_vector = (sgx_exception_vector_t)ssa_gpr->exit_info.vector;
     info->exception_type = (sgx_exception_type_t)ssa_gpr->exit_info.exit_type;
     info->xsave_size = thread_data->xsave_size;
-    ssa_xsave = (uint8_t*)ROUND_TO_PAGE(thread_data->first_ssa_gpr) - ROUND_TO_PAGE(get_xsave_size() + sizeof(ssa_gpr_t));
     memcpy_s(info->xsave_area, info->xsave_size, ssa_xsave, info->xsave_size);
 
     info->cpu_context.REG(ax) = ssa_gpr->REG(ax);
@@ -613,6 +670,10 @@ handler_end:
             (misc_exinfo_t*)((uint64_t)ssa_gpr - (uint64_t)MISC_BYTE_SIZE);
         info->exinfo.faulting_address = exinfo->maddr;
         info->exinfo.error_code = exinfo->errcd;
+    }
+    else
+    {
+        memset_s(&info->exinfo, sizeof(info->exinfo), 0, sizeof(info->exinfo));
     }
     new_sp = (uintptr_t *)sp;
     if(!(g_aexnotify_supported || is_exception_handled == true))
@@ -650,8 +711,157 @@ handler_end:
     {
         return SGX_SUCCESS;
     }
- 
+
 default_handler:
     set_enclave_state(ENCLAVE_CRASHED);
     return SGX_ERROR_ENCLAVE_CRASHED;
+}
+
+uintptr_t enclave_code_start_address = 0;
+size_t enclave_code_size = 0;
+
+// Exceptions, according to their sources, can be categorized into two types: standard exceptions and non-standard exceptions.
+// Standard exceptions are those triggered by the code of SGX SDK itself or the app code that statically linked to SGX SDK.
+// Non-standard exceptions are those triggered by dynamically-loaded code.
+static bool is_standard_exception(uintptr_t xip)
+{
+    assert(enclave_code_start_address != 0);
+    assert(enclave_code_size != 0);
+
+    if (xip >= enclave_code_start_address &&
+        xip < (enclave_code_start_address + enclave_code_size))
+    {
+        return true;
+    }
+
+    return false;
+}
+
+extern "C" sgx_status_t trts_handle_interrupt(void *tcs)
+{
+    thread_data_t *thread_data = get_thread_data();
+    ssa_gpr_t *ssa_gpr = NULL;
+    sgx_interrupt_info_t *info = NULL;
+    uintptr_t sp, *new_sp = NULL;
+    uintptr_t first_ssa_base = 0, pkru_base = 0;
+    uint32_t *pkru_ptr = NULL;
+    size_t size = 0;
+
+    if ((thread_data == NULL) || (tcs == NULL)) goto default_handler;
+    if (check_static_stack_canary(tcs) != 0)
+        goto default_handler;
+
+    if(get_enclave_state() != ENCLAVE_INIT_DONE)
+    {
+        goto default_handler;
+    }
+
+    if ((TD2TCS(thread_data) != tcs) 
+            || (((thread_data->first_ssa_gpr)&(~0xfff)) - ROUND_TO_PAGE(get_xsave_size() + sizeof(ssa_gpr_t))) != (uintptr_t)tcs) {
+        goto default_handler;
+    }
+
+    // no need to check the result of ssa_gpr because thread_data is always trusted
+    ssa_gpr = reinterpret_cast<ssa_gpr_t *>(thread_data->first_ssa_gpr);
+
+    if(ssa_gpr->exit_info.valid == 1)
+    {   // exceptions cannot be treated as interrupts
+        goto default_handler;
+    }
+
+    if (is_standard_exception(ssa_gpr->REG(ip))) {
+        goto default_handler;
+    }
+
+    if (!check_ip_interruptible(ssa_gpr->REG(ip))) {
+        goto default_handler;
+    }
+
+    // Confirm enclave is execting the user code
+    if (ssa_gpr->fs == ssa_gpr->gs) {
+        return SGX_SUCCESS;
+    }
+
+    // The bottom 2 pages are used as stack to handle the non-standard exceptions.
+    // User should take responsibility to confirm the stack is not corrupted.
+    sp = thread_data->stack_limit_addr + SE_PAGE_SIZE*2;
+
+    if(!is_stack_addr((void*)sp, 0))  // check stack overrun only, alignment will be checked after exception handled
+    {
+        set_enclave_state(ENCLAVE_CRASHED);
+        return SGX_ERROR_STACK_OVERRUN;
+    }
+
+    size = 0;
+    // x86_64 requires a 128-bytes red zone, which begins directly
+    // after the return addr and includes func's arguments
+    size += RED_ZONE_SIZE;
+
+    // decrease the stack to give space for info
+    size += sizeof(sgx_exception_info_t);
+    sp -= size;
+    sp = sp & ~0xF;
+
+    // check the decreased sp to make sure it is in the trusted stack range
+    if(!is_stack_addr((void *)sp, size))
+    {
+        set_enclave_state(ENCLAVE_CRASHED);
+        return SGX_ERROR_STACK_OVERRUN;
+    }
+
+    info = (sgx_interrupt_info_t *)sp;
+    // decrease the stack to save the SSA[0]->ip
+    size = sizeof(uintptr_t);
+    sp -= size;
+    if(!is_stack_addr((void *)sp, size))
+    {
+        set_enclave_state(ENCLAVE_CRASHED);
+        return SGX_ERROR_STACK_OVERRUN;
+    }
+
+    // restore the fs
+    ssa_gpr->fs = ssa_gpr->gs;
+
+    // initialize the info with SSA[0]
+    info->cpu_context.REG(ax) = ssa_gpr->REG(ax);
+    info->cpu_context.REG(cx) = ssa_gpr->REG(cx);
+    info->cpu_context.REG(dx) = ssa_gpr->REG(dx);
+    info->cpu_context.REG(bx) = ssa_gpr->REG(bx);
+    info->cpu_context.REG(sp) = ssa_gpr->REG(sp);
+    info->cpu_context.REG(bp) = ssa_gpr->REG(bp);
+    info->cpu_context.REG(si) = ssa_gpr->REG(si);
+    info->cpu_context.REG(di) = ssa_gpr->REG(di);
+    info->cpu_context.REG(flags) = ssa_gpr->REG(flags);
+    info->cpu_context.REG(ip) = ssa_gpr->REG(ip);
+#ifdef SE_64
+    info->cpu_context.r8  = ssa_gpr->r8;
+    info->cpu_context.r9  = ssa_gpr->r9;
+    info->cpu_context.r10 = ssa_gpr->r10;
+    info->cpu_context.r11 = ssa_gpr->r11;
+    info->cpu_context.r12 = ssa_gpr->r12;
+    info->cpu_context.r13 = ssa_gpr->r13;
+    info->cpu_context.r14 = ssa_gpr->r14;
+    info->cpu_context.r15 = ssa_gpr->r15;
+#endif
+
+    new_sp = (uintptr_t *)sp;
+    ssa_gpr->REG(ip) = (size_t)internal_handle_interrupt; // prepare the ip for 2nd phrase handling
+    ssa_gpr->REG(sp) = (size_t)new_sp;      // new stack for internal_handle_exception
+    ssa_gpr->REG(ax) = (size_t)info;        // 1st parameter (info) for LINUX32
+    ssa_gpr->REG(di) = (size_t)info;        // 1st parameter (info) for LINUX64, LINUX32 also uses it while restoring the context
+    *new_sp = info->cpu_context.REG(ip);    // for debugger to get call trace
+
+    if (is_pkru_enabled())
+    {
+        // Update PKRU to PKRU_LIBOS, ensuring LibOS has enough access rights at `internal_handle_exception()`.
+        first_ssa_base = (uintptr_t)tcs + SE_PAGE_SIZE; 
+        pkru_base = (uintptr_t)first_ssa_base + XSAVE_PKRU_OFFSET;
+        pkru_ptr = (uint32_t *)pkru_base;
+        *pkru_ptr = PKRU_LIBOS;
+    }
+
+    return SGX_SUCCESS;
+
+default_handler:
+    return SGX_SUCCESS;
 }
