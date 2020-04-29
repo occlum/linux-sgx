@@ -55,6 +55,11 @@ int elf_get_init_array(const void* enclave_base,
 
 int elf_get_uninit_array(const void* enclave_base,
         uintptr_t *uninit_array_addr, size_t *uninit_array_size);
+
+int get_first_executable_segment_info(const void *enclave_base,
+                                uintptr_t *segment_start_addr,
+                                size_t *segment_size);
+
 #ifdef __cplusplus
 }
 #endif
