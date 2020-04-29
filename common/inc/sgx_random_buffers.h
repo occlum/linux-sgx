@@ -164,7 +164,12 @@ struct alignas(A)randomly_placed_buffer
     // used for objects without a constructor.
     T *randomize_object(std::size_t count = 1)
     {
-        return (T*)(reset(count).__bigger_ + ((rdrand() % M) & ~(A - 1)));
+#if defined(MAXIMAL_CALLSTACK)
+        unsigned rand_size = M - 1;
+#else
+        unsigned rand_size = rdrand() % M;
+#endif
+        return (T*)(reset(count).__bigger_ + ((rand_size) & ~(A - 1)));
     }
 
     // instantiate_object() invokes T's constructor on the object returned by
