@@ -580,4 +580,36 @@ int init_segment_emas(void* enclave_base)
     return 0;
 }
 #endif
+
+int get_first_executable_segment_info(const void *enclave_base,
+                                      uintptr_t *segment_start_addr,
+                                      size_t *segment_size)
+{
+    ElfW(Half) phnum = 0;
+    const ElfW(Ehdr) *ehdr = (const ElfW(Ehdr) *)enclave_base;
+    ElfW(Phdr) *phdr = get_phdr(ehdr);
+    int ret = -1;
+
+    if (!segment_start_addr || !segment_size)
+        return ret;
+
+    *segment_start_addr = 0;
+    *segment_size = 0;
+
+    if (phdr == NULL)
+        return ret; /* Invalid image. */
+
+    for (; phnum < ehdr->e_phnum; phnum++, phdr++)
+    {
+        if (phdr->p_type == PT_LOAD && phdr->p_flags | PF_X)
+        {
+            *segment_start_addr = (size_t)enclave_base + phdr->p_vaddr;
+            *segment_size = phdr->p_memsz;
+            break;
+        }
+    }
+
+    return 0;
+}
+
 /* vim: set ts=4 sw=4 et cin: */
