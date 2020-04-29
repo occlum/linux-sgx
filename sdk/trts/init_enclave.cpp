@@ -100,6 +100,8 @@ static int __attribute__((section(".nipx"))) add_static_threads(const volatile l
     }
     return 0;
 }
+extern uintptr_t enclave_code_start_address;
+extern size_t enclave_code_size;
 
 // init_enclave()
 //      Initialize enclave.
@@ -231,7 +233,7 @@ extern "C" int init_enclave(void *enclave_base, void *ms)
         return -1;
     }
 
-    return 0;
+    return get_first_executable_segment_info(enclave_base, &enclave_code_start_address, &enclave_code_size);
 }
 
 #ifndef SE_SIM
