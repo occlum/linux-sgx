@@ -9,8 +9,13 @@ sudo /opt/intel/sgxpsw/uninstall.sh
 make clean
 
 # Compile SDK and install
-make sdk
-make sdk_install_pkg
+if [ "no_mitigation" = "$1" ]; then
+  make sdk_no_mitigation
+  make sdk_install_pkg_no_mitigation
+else
+  make sdk
+  make sdk_install_pkg
+fi
 sudo mkdir -p /opt/intel
 cd /opt/intel
 yes yes | sudo ${SCRIPT_PATH}/linux/installer/bin/sgx_linux_x64_sdk_*.bin
