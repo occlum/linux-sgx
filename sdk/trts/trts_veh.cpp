@@ -32,8 +32,8 @@
 
 /**
  * File: trts_veh.cpp
- * Description: 
- *     This file implements the support of custom exception handling. 
+ * Description:
+ *     This file implements the support of custom exception handling.
  */
 
 #include "sgx_trts_exception.h"
@@ -51,9 +51,14 @@
 #include "trts_shared_constants.h"
 #include "se_cdefs.h"
 #include "sgx_memset_s.h"
+<<<<<<< HEAD
 #include "sgx_interrupt.h"
 #include "emm_private.h"
 #include "sgx_mm_rt_abstraction.h"
+=======
+
+
+>>>>>>> Support two new trusted exceptions on SGX 2: #PF and #GP
 typedef struct _handler_node_t
 {
     uintptr_t callback;
@@ -139,7 +144,7 @@ void *sgx_register_exception_handler(int is_first_handler, sgx_exception_handler
 // sgx_unregister_exception_handler()
 //      unregister a custom exception handler.
 // Parameter
-//      handler - a handler to the custom exception handler previously 
+//      handler - a handler to the custom exception handler previously
 // registered using the sgx_register_exception_handler function.
 // Return Value
 //      none zero - success
@@ -427,7 +432,7 @@ extern "C" sgx_status_t trts_handle_exception(void *tcs, outside_exitinfo_t *u_o
     
     // sp is within limit_addr and commit_addr, currently only SGX 2.0 under hardware mode will enter this branch.
     if((size_t)sp < thread_data->stack_commit_addr)
-    { 
+    {
         int ret = -1;
         size_t page_aligned_delta = 0;
         /* try to allocate memory dynamically */
@@ -529,13 +534,14 @@ extern "C" sgx_status_t trts_handle_exception(void *tcs, outside_exitinfo_t *u_o
     {
         memset_s(&info->exinfo, sizeof(info->exinfo), 0, sizeof(info->exinfo));
     }
+
     new_sp = (uintptr_t *)sp;
     ssa_gpr->REG(ip) = (size_t)internal_handle_exception; // prepare the ip for 2nd phrase handling
     ssa_gpr->REG(sp) = (size_t)new_sp;      // new stack for internal_handle_exception
     ssa_gpr->REG(ax) = (size_t)info;        // 1st parameter (info) for LINUX32
     ssa_gpr->REG(di) = (size_t)info;        // 1st parameter (info) for LINUX64, LINUX32 also uses it while restoring the context
     *new_sp = info->cpu_context.REG(ip);    // for debugger to get call trace
-    
+
     //mark valid to 0 to prevent eenter again
     ssa_gpr->exit_info.valid = 0;
 
@@ -550,7 +556,7 @@ extern "C" sgx_status_t trts_handle_exception(void *tcs, outside_exitinfo_t *u_o
     }
 
     return SGX_SUCCESS;
- 
+
 default_handler:
     g_enclave_state = ENCLAVE_CRASHED;
     return SGX_ERROR_ENCLAVE_CRASHED;
