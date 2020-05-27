@@ -32,8 +32,8 @@
 
 /**
  * File: trts_veh.cpp
- * Description: 
- *     This file implements the support of custom exception handling. 
+ * Description:
+ *     This file implements the support of custom exception handling.
  */
 
 #include "sgx_trts_exception.h"
@@ -50,6 +50,7 @@
 #include "trts_util.h"
 #include "trts_shared_constants.h"
 #include "se_cdefs.h"
+#include "sgx_memset_s.h"
 
 
 typedef struct _handler_node_t
@@ -134,7 +135,7 @@ void *sgx_register_exception_handler(int is_first_handler, sgx_exception_handler
 // sgx_unregister_exception_handler()
 //      unregister a custom exception handler.
 // Parameter
-//      handler - a handler to the custom exception handler previously 
+//      handler - a handler to the custom exception handler previously
 // registered using the sgx_register_exception_handler function.
 // Return Value
 //      none zero - success
@@ -319,12 +320,12 @@ extern "C" sgx_status_t trts_handle_exception(void *tcs)
     if ((thread_data == NULL) || (tcs == NULL)) goto default_handler;
     if (check_static_stack_canary(tcs) != 0)
         goto default_handler;
- 
+
     if(get_enclave_state() != ENCLAVE_INIT_DONE)
     {
         goto default_handler;
     }
-    
+
     // check if the exception is raised from 2nd phrase
     if(thread_data->exception_flag == -1) {
         goto default_handler;
@@ -387,10 +388,10 @@ extern "C" sgx_status_t trts_handle_exception(void *tcs)
         g_enclave_state = ENCLAVE_CRASHED;
         return SGX_ERROR_STACK_OVERRUN;
     }
-    
+
     // sp is within limit_addr and commit_addr, currently only SGX 2.0 under hardware mode will enter this branch.^M
     if((size_t)sp < thread_data->stack_commit_addr)
-    { 
+    {
         int ret = -1;
         size_t page_aligned_delta = 0;
         /* try to allocate memory dynamically */
@@ -449,18 +450,29 @@ extern "C" sgx_status_t trts_handle_exception(void *tcs)
     info->cpu_context.r15 = ssa_gpr->r15;
 #endif
 
+    if (info->exception_vector == SGX_EXCEPTION_VECTOR_GP ||
+        info->exception_vector == SGX_EXCEPTION_VECTOR_PF)
+    {
+        sgx_exinfo_t *exinfo = reinterpret_cast<sgx_exinfo_t *>(reinterpret_cast<uintptr_t>(ssa_gpr) - 16);
+        info->exinfo = *exinfo;
+    }
+    else
+    {
+        memset_s(&info->exinfo, sizeof(info->exinfo), 0, sizeof(info->exinfo));
+    }
+
     new_sp = (uintptr_t *)sp;
     ssa_gpr->REG(ip) = (size_t)internal_handle_exception; // prepare the ip for 2nd phrase handling
     ssa_gpr->REG(sp) = (size_t)new_sp;      // new stack for internal_handle_exception
     ssa_gpr->REG(ax) = (size_t)info;        // 1st parameter (info) for LINUX32
     ssa_gpr->REG(di) = (size_t)info;        // 1st parameter (info) for LINUX64, LINUX32 also uses it while restoring the context
     *new_sp = info->cpu_context.REG(ip);    // for debugger to get call trace
-    
+
     //mark valid to 0 to prevent eenter again
     ssa_gpr->exit_info.valid = 0;
 
     return SGX_SUCCESS;
- 
+
 default_handler:
     g_enclave_state = ENCLAVE_CRASHED;
     return SGX_ERROR_ENCLAVE_CRASHED;
