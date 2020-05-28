@@ -63,8 +63,15 @@ typedef enum _sgx_exception_vector_t
 
 typedef enum _sgx_exception_type_t
 {
+    // According to Intel manual, EXIT_TYPE is a 3-bit value with 011b (=3) meaning
+    // hardware exception, 110b (=6) meaning software exception, and the
+    // remaining values reserved.
     SGX_EXCEPTION_HARDWARE = 3,
     SGX_EXCEPTION_SOFTWARE = 6,
+    // To emphasize that fact that simulated #PF and #GP exceptions for SGX 1
+    // carry untrusted information from ouside the enclave, a new enum value
+    // for exception type is created. The enum value uses a reserved value.
+    SGX_EXCEPTION_SIMULATED = 7,
 } sgx_exception_type_t;
 
 #if defined (_M_X64) || defined (__x86_64__)
@@ -107,9 +114,12 @@ typedef struct _cpu_context_t
 
 typedef struct _exinfo_t
 {
+    // If #PF: contains the page fault linear address that causes a page fault
+    // If #GP: the field is cleared
     uint64_t maddr;
+    // Exception error code for either #GP or #PF
     uint32_t errcd;
-    uint32_t reserved;
+    uint32_t _reserved;
 } sgx_exinfo_t;
 
 typedef struct _exception_info_t
