@@ -30,12 +30,12 @@
  */
 
 /* Implement functions:
- *         init_stack_guard() 
+ *         init_stack_guard()
  *         enter_enclave()
  *
  *  The functions in this source file will be called during the stack guard initialization.
  *  They cannot be built with '-fstack-protector-strong'. Otherwise, stack guard check will
- *  be failed before the function returns and 'ud2' will be triggered. 
+ *  be failed before the function returns and 'ud2' will be triggered.
 */
 
 #include "sgx_trts.h"
@@ -114,7 +114,7 @@ extern "C" int enter_enclave(int index, void *ms, void *tcs, int cssa)
     }
     else if(cssa == 1)
     {
-        error = trts_handle_exception(tcs);
+        error = trts_handle_exception(tcs, (outside_exitinfo_t*)ms);
         if (check_static_stack_canary(tcs) != 0)
         {
             error = SGX_ERROR_STACK_OVERRUN;

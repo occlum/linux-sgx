@@ -36,6 +36,7 @@
 #include "se_trace.h"
 #include "rts.h"
 #include "enclave.h"
+#include "outside_exitinfo.h"
 #include <assert.h>
 #include <signal.h>
 #include <string.h>
@@ -130,14 +131,58 @@ void sig_handler(int signum, siginfo_t* siginfo, void *priv)
         //The ecall looks recursively, but it will not cause infinite call.
         //If exception is raised in trts again and again, the SSA will overflow, and finally it is EENTER exception.
         assert(reinterpret_cast<tcs_t *>(xbx) == param->tcs);
+
+        void* ms = (void *)-1;
+
+        // #PF and #GP exception simulation on SGX 1
+        outside_exitinfo_t outside_info;
+        if (signum == SIGSEGV) {
+            bool can_handle;
+            int err_flag = PF_ERR_FLAG_USER;
+
+            switch(siginfo->si_code) {
+            case SEGV_MAPERR:
+                can_handle = true;
+                break;
+            case SEGV_ACCERR:
+                err_flag |= PF_ERR_FLAG_PRESENT;
+                // We cannot know the exact flag for this page faulut given
+                // the siginfo_t. We just assume that if SEGV_ACCER, then it
+                // stems from a invalid memory write.
+                err_flag |= PF_ERR_FLAG_WRITE;
+                can_handle = true;
+                break;
+            default:
+                // TODO: handle more types of SIGSEGV
+                can_handle = false;
+                break;
+            }
+
+            if (can_handle) {
+                outside_info.vector = SGX_EXCEPTION_VECTOR_PF;
+                outside_info.addr = (uint64_t) siginfo->si_addr;
+                outside_info.err_flag = err_flag;
+                ms = (void*) &outside_info;
+            }
+        }
+
+        int ecmd;
+        if (signum != SIGRT_INTERRUPT) {
+            ecmd = ECMD_EXCEPT;
+        } else {
+            ecmd = ECMD_INTERRUPT;
+        }
+
         CEnclave *enclave = param->trust_thread->get_enclave();
         if(enclave->get_aex_notify() != true)
         {
-            unsigned int ret = enclave->ecall(ECMD_EXCEPT, param->ocall_table, NULL);
+            // unsigned int ret = enclave->ecall(ecmd, param->ocall_table, ms);
+            unsigned int ret = do_ecall(ecmd, param->ocall_table, ms, param->trust_thread);
             if(SGX_SUCCESS == ret)
             {
                 //ERESUME execute
                 return;
+
             }
             //If the exception is caused by enclave lost or internal stack overrun, then return the error code to ecall caller elegantly.
             else if(SGX_ERROR_ENCLAVE_LOST == ret || SGX_ERROR_STACK_OVERRUN == ret)
@@ -156,12 +201,17 @@ void sig_handler(int signum, siginfo_t* siginfo, void *priv)
         else
         {
             context->uc_mcontext.gregs[REG_XAX] = SE_EENTER;
-            context->uc_mcontext.gregs[REG_XDI] = ECMD_EXCEPT;
+            context->uc_mcontext.gregs[REG_XDI] = ecmd;
             // This XSI parameter is not actually used by the exception handler in trts. 
             //But it is just left here for completeness.
-            context->uc_mcontext.gregs[REG_XSI] = (size_t)(param->ocall_table);
+            context->uc_mcontext.gregs[REG_XSI] = (size_t)ms;
             return;
         }
+    }
+    else if (signum == SIGRT_INTERRUPT)
+    {
+        // If not interrupting the enclave, just ignore the signal
+        return;
     }
     //the case of exception on EENTER instruction.
     else if(xip == get_eenterp()
