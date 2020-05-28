@@ -301,14 +301,15 @@ static int expand_stack_by_pages(void *start_addr, size_t page_count)
 
 extern "C" const char Lereport_inst;
 
-// trts_handle_exception(void *tcs)
+// trts_handle_exception(void *tcs, outside_exitinfo_t *outside_info)
 //      the entry point for the exceptoin handling
 // Parameter
 //      the pointer of TCS
+//      the pointer of extra info about exception from outside the enclave
 // Return Value
 //      none zero - success
 //              0 - fail
-extern "C" sgx_status_t trts_handle_exception(void *tcs)
+extern "C" sgx_status_t trts_handle_exception(void *tcs, outside_exitinfo_t *u_outside_info)
 {
     thread_data_t *thread_data = get_thread_data();
     ssa_gpr_t *ssa_gpr = NULL;
@@ -418,6 +419,30 @@ extern "C" sgx_status_t trts_handle_exception(void *tcs)
         ssa_gpr->REG(ip) += 3;     // Skip ENCLU, which is always a 3-byte instruction
         ssa_gpr->REG(flags) |= 1;  // Set CF to indicate error condition, see implementation of do_report()
         return SGX_SUCCESS;
+    }
+
+    // If no hardware exception, we try to use outside_info to do exception simulation
+    if (ssa_gpr->exit_info.valid != 1 && u_outside_info != NULL) {
+        if (!sgx_is_outside_enclave((void*)u_outside_info, sizeof(*u_outside_info)))
+        {   // looks like an attack
+            goto default_handler;
+        }
+
+        // Copy into enclave to prevent TOCTTOU attack
+        outside_exitinfo_t outside_info = *u_outside_info;
+
+        if (outside_info.vector == SGX_EXCEPTION_VECTOR_PF) {
+            ssa_gpr->exit_info.vector = SGX_EXCEPTION_VECTOR_PF;
+            // Distinguish hardware exceptions from simulated exceptions
+            ssa_gpr->exit_info.exit_type = SGX_EXCEPTION_SIMULATED;
+
+            sgx_exinfo_t *exinfo = reinterpret_cast<sgx_exinfo_t *>(reinterpret_cast<uintptr_t>(ssa_gpr) - 16);
+            memset_s(exinfo, sizeof(*exinfo), 0, sizeof(*exinfo));
+            exinfo->maddr = outside_info.addr;
+            exinfo->errcd = outside_info.err_flag & PF_ERR_FLAG_MASK;
+
+            ssa_gpr->exit_info.valid = 1;
+        }
     }
 
     if(ssa_gpr->exit_info.valid != 1)
