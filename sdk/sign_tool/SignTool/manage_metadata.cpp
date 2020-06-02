@@ -583,6 +583,7 @@ bool CMetadata::build_layout_entries()
         layout_t layout = m_layouts[m_layouts.size() - 1];
         uint32_t extra_pages = (uint32_t)((m_metadata->enclave_size - m_rva) >> SE_PAGE_SHIFT);
 
+#if 0
         if (((layout.entry.id == LAYOUT_ID_RSRV_INIT) || (layout.entry.id == LAYOUT_ID_RSRV_MAX)) ||
             ((layout.entry.id == LAYOUT_ID_RSRV_MIN) && (layout.entry.page_count > 0)))
         {
@@ -609,6 +610,7 @@ bool CMetadata::build_layout_entries()
             }
         }
         else
+#endif
         {
             memset(&layout, 0, sizeof(layout));
             layout.entry.id = LAYOUT_ID_GUARD;
