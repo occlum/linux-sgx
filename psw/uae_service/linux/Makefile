@@ -52,8 +52,7 @@ INCLUDE += -I$(COMMON_DIR)              \
 
 INCLUDE += -I$(LINUX_PSW_DIR)/ae/common         \
            -I$(LINUX_PSW_DIR)/ae/inc            \
-           -I$(LINUX_PSW_DIR)/ae/inc/internal   \
-           -I$(SGX_HEADER_DIR)
+           -I$(LINUX_PSW_DIR)/ae/inc/internal
 
 INCLUDE += -I$(LINUX_EXTERNAL_DIR)/epid-sdk \
            -I$(IPC_COMMON_INC_DIR) \
