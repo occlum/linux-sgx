@@ -44,7 +44,7 @@ CXXFLAGS += $(ADDED_INC)
 CFLAGS += -fPIC -Werror -g
 CFLAGS += $(ADDED_INC)
 
-INC += -I$(SGX_HEADER_DIR)                \
+INC += -I$(COMMON_DIR)/inc                \
        -I$(COMMON_DIR)/inc/internal       \
        -I$(COMMON_DIR)/inc/internal/linux \
        -I$(LINUX_PSW_DIR)/urts/           \

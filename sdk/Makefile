@@ -48,6 +48,7 @@ opt_check_failed:
 .PHONY: all
 all: $(CHECK_OPT)
 	$(MAKE) components
+	$(MAKE) -C ../psw/urts/linux
 ifneq ($(MITIGATION-CVE-2020-0551),)
 	$(RM) -r $(BUILD_DIR)$(MITIGATION-CVE-2020-0551)
 	mv $(BUILD_DIR) $(BUILD_DIR)$(MITIGATION-CVE-2020-0551)
