@@ -43,7 +43,8 @@ OBJS := se_memory.o \
         se_event.o  \
         se_rwlock.o \
         se_time.o \
-        se_map.o
+        se_map.o \
+        se_event_timeout_wait.o
 
 LIBWRAPPER := libwrapper.a
 
