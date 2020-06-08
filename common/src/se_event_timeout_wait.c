@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2021 Intel Corporation. All rights reserved.
+ * Copyright (C) 2011-2020 Intel Corporation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -35,61 +35,18 @@
 #include <linux/futex.h>
 #include <sys/time.h>
 
-se_handle_t se_event_init(void)
+int se_event_timeout_wait(se_handle_t se_event, const struct timespec *ts, int *err)
 {
-    return calloc(1, sizeof(int)); 
-}
+    int ret = 0;
 
-void se_event_destroy(se_handle_t se_event)
-{
-    if (se_event != NULL)
-        free(se_event); 
-}
-
-int se_event_wait(se_handle_t se_event)
-{
-    if (se_event == NULL)
+    if (se_event == NULL || err == NULL)
         return SE_MUTEX_INVALID;
 
-    if (__sync_fetch_and_add((int*)se_event, -1) == 0)
-        syscall(__NR_futex, se_event, FUTEX_WAIT, -1, NULL, NULL, 0);
-
-    return SE_MUTEX_SUCCESS;
-}
-
-/*
- * timeout: Second
-*/
-int se_event_wait_timeout(se_handle_t se_event, uint64_t timeout)
-{
-    if (se_event == NULL)
-        return SE_MUTEX_INVALID;
-
-    if(0 == timeout)
-        return se_event_wait(se_event);
-
-    if (__sync_fetch_and_add((int*)se_event, -1) == 0)
-    {
-        struct timespec time;
-        time.tv_sec = (time_t)timeout;
-        time.tv_nsec = 0;
-        syscall(__NR_futex, se_event, FUTEX_WAIT, -1, &time, NULL, 0);
-        //If the futex is exit with timeout (se_event still equal to ' -1'), the se_event value need reset to 0.
-        //Or the event wait will unworkable in next round checking "if (__sync_fetch_and_add((int*)se_event, -1) == 0)".
+    if (__sync_fetch_and_add((int*)se_event, -1) == 0) {
+        ret = (int)syscall(__NR_futex, se_event, FUTEX_WAIT, -1, ts, NULL, 0);
         __sync_val_compare_and_swap((int*)se_event, -1, 0);
     }
-
-    return SE_MUTEX_SUCCESS;
-}
-
-
-int se_event_wake(se_handle_t se_event)
-{
-    if (se_event == NULL)
-        return SE_MUTEX_INVALID;
-
-    if (__sync_fetch_and_add((int*)se_event, 1) != 0)
-        syscall(__NR_futex, se_event, FUTEX_WAKE, 1, NULL, NULL, 0);
+    *err = ret < 0 ? errno : 0;
 
     return SE_MUTEX_SUCCESS;
 }
