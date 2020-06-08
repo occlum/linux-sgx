@@ -34,7 +34,7 @@ include ../../buildenv.mk
 CFLAGS += -Werror -D_GNU_SOURCE -fPIC
 CFLAGS += $(ADDED_INC)
 
-CPPFLAGS := -I$(SGX_HEADER_DIR) \
+CPPFLAGS := -I$(COMMON_DIR)/inc \
             -I$(COMMON_DIR)/inc/internal
 
 OBJS := se_memory.o \
@@ -43,7 +43,8 @@ OBJS := se_memory.o \
         se_event.o  \
         se_rwlock.o \
         se_time.o \
-        se_map.o
+        se_map.o \
+        se_event_timeout_wait.o
 
 LIBWRAPPER := libwrapper.a
 
