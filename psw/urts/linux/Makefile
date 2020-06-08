@@ -46,7 +46,7 @@ CFLAGS += $(ADDED_INC)
 
 VTUNE_DIR = $(LINUX_EXTERNAL_DIR)/vtune/linux
 
-INC += -I$(SGX_HEADER_DIR)                \
+INC += -I$(COMMON_DIR)/inc                \
        -I$(COMMON_DIR)/inc/internal       \
        -I$(COMMON_DIR)/inc/internal/linux \
        -I$(LINUX_PSW_DIR)/enclave_common  \
@@ -121,11 +121,13 @@ LIBSGX_ENCLAVE_COMMON := libsgx_enclave_common.a
 LIBURTS               := libsgx_urts.so
 LIBURTS_INTERNAL      := liburts_internal.so
 LIBURTS_DEBUG	      := libsgx_urts.so.debug
+LIBURTS_STATIC        := libsgx_urts.a
 
 
 .PHONY: all
-all: $(LIBURTS) $(LIBURTS_INTERNAL) $(LIBURTS_DEBUG) | $(BUILD_DIR)
+all: $(LIBURTS) $(LIBURTS_STATIC) $(LIBURTS_INTERNAL) $(LIBURTS_DEBUG) | $(BUILD_DIR)
 	@$(CP) $(LIBURTS)          $|
+	@$(CP) $(LIBURTS_STATIC)   $|
 	@$(CP) $(LIBURTS_INTERNAL) $|
 ifndef DEBUG
 	@$(CP) $(LIBURTS_DEBUG)    $|
@@ -142,6 +144,15 @@ $(LIBURTS_INTERNAL): $(INTERNAL_OBJ) $(LIBWRAPPER) $(LIBSGX_ENCLAVE_COMMON) ittn
 
 $(LIBURTS): $(URTS_OBJ) $(LIBWRAPPER) $(LIBSGX_ENCLAVE_COMMON) ittnotify
 	$(CXX) $(CXXFLAGS) -shared -Wl,-soname=$@.$(call SPLIT_VERSION,$(URTS_VER),1) $(LIB) -o $@  $(URTS_OBJ) $(LDFLAGS)
+
+$(LIBURTS_STATIC): $(LIBURTS)
+	@$(MKDIR) $(BUILD_DIR)/.sgx_static_urts
+	@$(RM) -f $(BUILD_DIR)/.sgx_static_urts/*
+	cd $(BUILD_DIR)/.sgx_static_urts && \
+	$(AR) x $(COMMON_DIR)/se_wrapper/libwrapper.a && \
+	$(AR) x $(VTUNE_DIR)/sdk/src/ittnotify/libittnotify.a && \
+	$(RM) -f se_event.o
+	$(AR) rsD $@ $(URTS_OBJ) $(BUILD_DIR)/.sgx_static_urts/*.o
 
 $(LIBURTS_DEBUG): $(LIBURTS)
 ifndef DEBUG
@@ -172,7 +183,7 @@ $(BUILD_DIR):
 
 .PHONY: clean
 clean::
-	@$(RM) *.o $(LIBURTS) $(LIBURTS_INTERNAL) $(LIBURTS_DEBUG)
+	@$(RM) *.o $(LIBURTS) $(LIBURTS_INTERNAL) $(LIBURTS_DEBUG) $(LIBURTS_STATIC)
 	@$(RM) $(BUILD_DIR)/$(LIBURTS) $(BUILD_DIR)/$(LIBURTS_INTERNAL)
 	@$(RM) $(LIBURTS).orig $(BUILD_DIR)/$(LIBURTS_DEBUG)
 	$(MAKE) -C $(COMMON_DIR)/se_wrapper_psw/                   clean
