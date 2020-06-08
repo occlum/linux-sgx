@@ -121,6 +121,7 @@ vpath %.c .:$(DIR6)
 LDFLAGS += $(COMMON_LDFLAGS) -Wl,--version-script=$(LINUX_PSW_DIR)/urts/linux/urts.lds
 
 LIBURTSSIM_SHARED := libsgx_urts_sim.so
+LIBURTSSIM_STATIC := libsgx_urts_sim.a
 LIBURTSSIM_DEBUG := libsgx_urts_sim.so.debug
 LIBURTS_DEPLOY := libsgx_urts_deploy.so
 
@@ -128,8 +129,9 @@ LDLIBS  += -lwrapper -lcrypto -Wl,-Bdynamic -Wl,-Bsymbolic -lsgx_uae_service_sim
 SONAME = $(LIBURTSSIM_SHARED)
 
 .PHONY: all
-all: $(LIBURTSSIM_SHARED) $(LIBURTSSIM_DEBUG) $(LIBURTS_DEPLOY)| $(BUILD_DIR)
+all: $(LIBURTSSIM_SHARED) $(LIBURTSSIM_STATIC) $(LIBURTSSIM_DEBUG) $(LIBURTS_DEPLOY)| $(BUILD_DIR)
 	$(CP) $(LIBURTSSIM_SHARED) $|
+	$(CP) $(LIBURTSSIM_STATIC) $|
 	$(CP) $(LIBURTS_DEPLOY) $|
 ifndef DEBUG
 	$(CP) $(LIBURTSSIM_DEBUG) $|
@@ -137,6 +139,15 @@ endif
 
 $(LIBURTSSIM_SHARED): simasm uinst driver_api wrapper uae_service_sim $(OBJ) $(OBJ6) ittnotify
 	$(CXX) $(CXXFLAGS) -shared -Wl,-soname=$(SONAME) $(OBJ) $(OBJ6) $(LDFLAGS) $(LDLIBS) -o $@
+
+$(LIBURTSSIM_STATIC): $(LIBURTSSIM_SHARED)
+	@$(MKDIR) $(BUILD_DIR)/.sgx_static_urts
+	@$(RM) -f $(BUILD_DIR)/.sgx_static_urts/*
+	cd $(BUILD_DIR)/.sgx_static_urts && \
+	$(AR) x $(COMMON_DIR)/se_wrapper/libwrapper.a && \
+	$(AR) x $(VTUNE_DIR)/sdk/src/ittnotify/libittnotify.a && \
+	$(RM) -f se_event.o
+	$(AR) rsD $@ $(URTS_OBJ) $(BUILD_DIR)/.sgx_static_urts/*.o
 
 $(LIBURTSSIM_DEBUG): $(LIBURTSSIM_SHARED)
 ifndef DEBUG
