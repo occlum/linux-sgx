@@ -55,6 +55,7 @@ OBJS1 := init_enclave.o  \
         trts_version.o \
         trts_trim.o \
         trts_emodpr.o  \
+        trts_interrupt.o  \
         trts_add_trim.o
 
 OBJS2 := trts_nsp.o
