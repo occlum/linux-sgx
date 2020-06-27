@@ -89,6 +89,9 @@ typedef struct _ecall_param_t
 #define ECALL_PARAM (reinterpret_cast<ecall_param_t*>(context->uc_mcontext.gregs[REG_EBP] + 2 * 4))
 #endif
 
+// Real-time signal 64 is used to trigger an interrupt to an enclave thread
+#define SIGRT_INTERRUPT    (64)
+
 extern "C" void *get_aep();
 extern "C" void *get_eenterp();
 extern "C" void *get_eretp();
@@ -290,6 +293,10 @@ void reg_sig_handler()
         sigdelset(&sig_act.sa_mask, SIGBUS);
         sigdelset(&sig_act.sa_mask, SIGTRAP);
     }
+    // The signal for interrupt should only interrupt the normal execution of
+    // the enclave, not interrupt the enclave's handling of exceptions or
+    // interrupts
+    sigaddset(&sig_act.sa_mask, SIGRT_INTERRUPT);
 
     ret = sigaction(SIGSEGV, &sig_act, &g_old_sigact[SIGSEGV]);
     if (0 != ret) abort();
@@ -300,6 +307,10 @@ void reg_sig_handler()
     ret = sigaction(SIGBUS, &sig_act, &g_old_sigact[SIGBUS]);
     if (0 != ret) abort();
     ret = sigaction(SIGTRAP, &sig_act, &g_old_sigact[SIGTRAP]);
+    if (0 != ret) abort();
+
+    sig_act.sa_flags = SA_SIGINFO ; // Remove SA_RESTART and SA_NODEFER
+    ret = sigaction(SIGRT_INTERRUPT, &sig_act, &g_old_sigact[SIGRT_INTERRUPT]);
     if (0 != ret) abort();
 }
 

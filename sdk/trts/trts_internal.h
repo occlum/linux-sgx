@@ -35,6 +35,7 @@
 #include "trts_shared_constants.h"
 #include "trts_internal_types.h"
 #include "outside_exitinfo.h"
+#include "sgx_interrupt.h"
 
 #define TD2TCS(td) ((const void *)(((thread_data_t*)(td))->stack_base_addr + (size_t)STATIC_STACK_SIZE + (size_t)SE_GUARD_PAGE_SIZE))
 #define TCS2CANARY(addr)    ((size_t *)((size_t)(addr)-(size_t)SE_GUARD_PAGE_SIZE-(size_t)STATIC_STACK_SIZE+sizeof(size_t)))
@@ -59,6 +60,10 @@ sgx_status_t do_ecall_add_thread(void *ms);
 sgx_status_t do_uninit_enclave(void *tcs);
 int check_static_stack_canary(void *tcs);
 sgx_status_t _pthread_thread_run(void* ms);
+
+sgx_status_t trts_handle_interrupt(void *tcs);
+int check_ip_interruptible(size_t ip);
+__attribute__((regparm(1))) void internal_handle_interrupt(sgx_interrupt_info_t *info);
 
 #ifdef __cplusplus
 }
