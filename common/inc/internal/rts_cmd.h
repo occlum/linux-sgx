@@ -40,6 +40,8 @@
 
 #define ECMD_ECALL_PTHREAD  (-6)
 
+#define ECMD_INTERRUPT      (-32)
+
 /* Reserved for 3rd party usage */
 #define RESERVED_FOR_3RD_PARTY_START -100
 #define RESERVED_FOR_3RD_PARTY_END -1000
