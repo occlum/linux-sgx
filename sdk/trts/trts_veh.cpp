@@ -51,6 +51,7 @@
 #include "trts_shared_constants.h"
 #include "se_cdefs.h"
 #include "sgx_memset_s.h"
+#include "sgx_interrupt.h"
 
 
 typedef struct _handler_node_t
@@ -521,4 +522,116 @@ static bool is_standard_exception(uintptr_t xip)
     }
 
     return false;
+}
+
+
+extern "C" sgx_status_t trts_handle_interrupt(void *tcs)
+{
+    thread_data_t *thread_data = get_thread_data();
+    ssa_gpr_t *ssa_gpr = NULL;
+    sgx_interrupt_info_t *info = NULL;
+    uintptr_t sp, *new_sp = NULL;
+    size_t size = 0;
+
+    if ((thread_data == NULL) || (tcs == NULL)) goto default_handler;
+    if (check_static_stack_canary(tcs) != 0)
+        goto default_handler;
+
+    if(get_enclave_state() != ENCLAVE_INIT_DONE)
+    {
+        goto default_handler;
+    }
+
+    if (TD2TCS(thread_data) != tcs || (((thread_data->first_ssa_gpr) & (~0xfff)) - SE_PAGE_SIZE) != (uintptr_t)tcs)
+    {
+        goto default_handler;
+    }
+
+    // no need to check the result of ssa_gpr because thread_data is always trusted
+    ssa_gpr = reinterpret_cast<ssa_gpr_t *>(thread_data->first_ssa_gpr);
+
+    if(ssa_gpr->exit_info.valid == 1)
+    {   // exceptions cannot be treated as interrupts
+        goto default_handler;
+    }
+
+    if (is_standard_exception(ssa_gpr->REG(ip))) {
+        goto default_handler;
+    }
+
+    if (!check_ip_interruptible(ssa_gpr->REG(ip))) {
+        goto default_handler;
+    }
+
+    // The bottom 2 pages are used as stack to handle the non-standard exceptions.
+    // User should take responsibility to confirm the stack is not corrupted.
+    sp = thread_data->stack_limit_addr + SE_PAGE_SIZE*2;
+
+    if(!is_stack_addr((void*)sp, 0))  // check stack overrun only, alignment will be checked after exception handled
+    {
+        g_enclave_state = ENCLAVE_CRASHED;
+        return SGX_ERROR_STACK_OVERRUN;
+    }
+
+    size = 0;
+    // x86_64 requires a 128-bytes red zone, which begins directly
+    // after the return addr and includes func's arguments
+    size += RED_ZONE_SIZE;
+
+    // decrease the stack to give space for info
+    size += sizeof(sgx_exception_info_t);
+    sp -= size;
+    sp = sp & ~0xF;
+
+    // check the decreased sp to make sure it is in the trusted stack range
+    if(!is_stack_addr((void *)sp, size))
+    {
+        g_enclave_state = ENCLAVE_CRASHED;
+        return SGX_ERROR_STACK_OVERRUN;
+    }
+
+    info = (sgx_interrupt_info_t *)sp;
+    // decrease the stack to save the SSA[0]->ip
+    size = sizeof(uintptr_t);
+    sp -= size;
+    if(!is_stack_addr((void *)sp, size))
+    {
+        g_enclave_state = ENCLAVE_CRASHED;
+        return SGX_ERROR_STACK_OVERRUN;
+    }
+
+    // initialize the info with SSA[0]
+
+    info->cpu_context.REG(ax) = ssa_gpr->REG(ax);
+    info->cpu_context.REG(cx) = ssa_gpr->REG(cx);
+    info->cpu_context.REG(dx) = ssa_gpr->REG(dx);
+    info->cpu_context.REG(bx) = ssa_gpr->REG(bx);
+    info->cpu_context.REG(sp) = ssa_gpr->REG(sp);
+    info->cpu_context.REG(bp) = ssa_gpr->REG(bp);
+    info->cpu_context.REG(si) = ssa_gpr->REG(si);
+    info->cpu_context.REG(di) = ssa_gpr->REG(di);
+    info->cpu_context.REG(flags) = ssa_gpr->REG(flags);
+    info->cpu_context.REG(ip) = ssa_gpr->REG(ip);
+#ifdef SE_64
+    info->cpu_context.r8  = ssa_gpr->r8;
+    info->cpu_context.r9  = ssa_gpr->r9;
+    info->cpu_context.r10 = ssa_gpr->r10;
+    info->cpu_context.r11 = ssa_gpr->r11;
+    info->cpu_context.r12 = ssa_gpr->r12;
+    info->cpu_context.r13 = ssa_gpr->r13;
+    info->cpu_context.r14 = ssa_gpr->r14;
+    info->cpu_context.r15 = ssa_gpr->r15;
+#endif
+
+    new_sp = (uintptr_t *)sp;
+    ssa_gpr->REG(ip) = (size_t)internal_handle_interrupt; // prepare the ip for 2nd phrase handling
+    ssa_gpr->REG(sp) = (size_t)new_sp;      // new stack for internal_handle_exception
+    ssa_gpr->REG(ax) = (size_t)info;        // 1st parameter (info) for LINUX32
+    ssa_gpr->REG(di) = (size_t)info;        // 1st parameter (info) for LINUX64, LINUX32 also uses it while restoring the context
+    *new_sp = info->cpu_context.REG(ip);    // for debugger to get call trace
+
+    return SGX_SUCCESS;
+
+default_handler:
+    return SGX_SUCCESS;
 }
