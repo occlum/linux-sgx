@@ -86,6 +86,9 @@ typedef struct _ecall_param_t
 #define ECALL_PARAM (reinterpret_cast<ecall_param_t*>(context->uc_mcontext.gregs[REG_EBP] + 2 * 4))
 #endif
 
+// Real-time signal 64 is used to trigger an interrupt to an enclave thread
+#define SIGRT_INTERRUPT    (64)
+
 extern "C" void *get_aep();
 extern "C" void *get_eenterp();
 extern "C" void *get_eretp();
@@ -128,8 +131,15 @@ void sig_handler(int signum, siginfo_t* siginfo, void *priv)
         //The ecall looks recursively, but it will not cause infinite call.
         //If exception is raised in trts again and again, the SSA will overflow, and finally it is EENTER exception.
         assert(reinterpret_cast<tcs_t *>(xbx) == param->tcs);
+        int ecmd;
+        if (signum != SIGRT_INTERRUPT) {
+            ecmd = ECMD_EXCEPT;
+        } else {
+            ecmd = ECMD_INTERRUPT;
+        }
+
         CEnclave *enclave = param->trust_thread->get_enclave();
-        unsigned int ret = enclave->ecall(ECMD_EXCEPT, param->ocall_table, NULL);
+        unsigned int ret = enclave->ecall(ecmd, param->ocall_table, NULL);
         if(SGX_SUCCESS == ret)
         {
             //ERESUME execute
@@ -148,6 +158,11 @@ void sig_handler(int signum, siginfo_t* siginfo, void *priv)
         
         enclave->rdunlock();
         CEnclavePool::instance()->unref_enclave(enclave);
+    }
+    else if (signum == SIGRT_INTERRUPT)
+    {
+        // If not interrupting the enclave, just ignore the signal
+        return;
     }
     //the case of exception on EENTER instruction.
     else if(xip == get_eenterp()
@@ -226,6 +241,10 @@ void reg_sig_handler()
         sigdelset(&sig_act.sa_mask, SIGBUS);
         sigdelset(&sig_act.sa_mask, SIGTRAP);
     }
+    // The signal for interrupt should only interrupt the normal execution of
+    // the enclave, not interrupt the enclave's handling of exceptions or
+    // interrupts
+    sigaddset(&sig_act.sa_mask, SIGRT_INTERRUPT);
 
     ret = sigaction(SIGSEGV, &sig_act, &g_old_sigact[SIGSEGV]);
     if (0 != ret) abort();
@@ -236,6 +255,10 @@ void reg_sig_handler()
     ret = sigaction(SIGBUS, &sig_act, &g_old_sigact[SIGBUS]);
     if (0 != ret) abort();
     ret = sigaction(SIGTRAP, &sig_act, &g_old_sigact[SIGTRAP]);
+    if (0 != ret) abort();
+
+    sig_act.sa_flags = SA_SIGINFO ; // Remove SA_RESTART and SA_NODEFER
+    ret = sigaction(SIGRT_INTERRUPT, &sig_act, &g_old_sigact[SIGRT_INTERRUPT]);
     if (0 != ret) abort();
 }
 
