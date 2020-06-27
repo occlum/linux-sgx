@@ -50,15 +50,11 @@
 #include "trts_util.h"
 #include "trts_shared_constants.h"
 #include "se_cdefs.h"
-#include "sgx_memset_s.h"
-<<<<<<< HEAD
-#include "sgx_interrupt.h"
 #include "emm_private.h"
 #include "sgx_mm_rt_abstraction.h"
-=======
+#include "sgx_memset_s.h"
+#include "sgx_interrupt.h"
 
-
->>>>>>> Support two new trusted exceptions on SGX 2: #PF and #GP
 typedef struct _handler_node_t
 {
     uintptr_t callback;
