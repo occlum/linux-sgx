@@ -513,7 +513,7 @@ def is_bp_in_urts():
     try:
         ip = gdb.parse_and_eval("$pc")
         solib_name = gdb.solib_name(int(str(ip).split()[0], 16))
-        if(solib_name.find("libsgx_urts.so") == -1 and solib_name.find("libsgx_urts_sim.so") == -1 and solib_name.find("libsgx_aesm_service.so") == -1):
+        if(solib_name.find("libocclum-pal.so") == -1 and solib_name.find("libsgx_urts.so") == -1 and solib_name.find("libsgx_urts_sim.so") == -1 and solib_name.find("libsgx_aesm_service.so") == -1):
             return False
         else:
             return True
@@ -765,7 +765,7 @@ def exit_handler(event):
 
 def newobj_handler(event):
     solib_name = os.path.basename(event.new_objfile.filename)
-    if solib_name == 'libsgx_urts.so' or solib_name == 'libsgx_urts_sim.so' or solib_name == 'libsgx_aesm_service.so':
+    if solib_name.find("libocclum-pal.so") != -1 or solib_name == 'libsgx_urts.so' or solib_name == 'libsgx_urts_sim.so' or solib_name == 'libsgx_aesm_service.so':
         sgx_debugger_init()
     return
 
