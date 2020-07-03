@@ -30,14 +30,20 @@
  */
 
 enclave {
+    /* Define libc's timespec_t for EDL */
+    struct sgx_edl_timespec {
+        int64_t sec;
+        int64_t nsec;
+    };
+
     untrusted {
         [cdecl] void sgx_oc_cpuidex([out] int cpuinfo[4], int leaf, int subleaf);
-        
+
         /* Go outside and wait on my untrusted event */
         [cdecl] int sgx_thread_wait_untrusted_event_ocall([user_check] const void *self);
 
         /* Go outside and wait on my untrusted event with timeout */
-        [cdecl] int sgx_thread_wait_untrusted_event_timeout_ocall([user_check] const void *self, int64_t sec, int64_t nsec, [out] int* err);
+        [cdecl] int sgx_thread_wait_untrusted_event_timeout_ocall([user_check] const void *self, [in] const struct sgx_edl_timespec* ts, [out] int* err);
 
         /* Wake a thread waiting on its untrusted event */
         [cdecl] int sgx_thread_set_untrusted_event_ocall([user_check] const void *waiter);
