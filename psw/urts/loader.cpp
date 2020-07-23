@@ -867,9 +867,9 @@ int CLoader::set_memory_protection()
         layout_t *layout_end = GET_PTR(layout_t, m_metadata, m_metadata->dirs[DIR_LAYOUT].offset + m_metadata->dirs[DIR_LAYOUT].size);
         for (layout_t *layout = layout_start; layout < layout_end; layout++)
         {
-            if(layout->entry.id ==  LAYOUT_ID_RSRV_MIN && layout->entry.si_flags == SI_FLAGS_RWX)
+            if (layout->entry.id ==  LAYOUT_ID_RSRV_MIN && layout->entry.si_flags == SI_FLAGS_RWX && layout->entry.page_count > 0)
             {
-                ret = get_enclave_creator()->emodpr((uint64_t)m_start_addr + layout->entry.rva, layout->entry.page_count << SE_PAGE_SHIFT, (uint64_t)(SI_FLAG_R |SI_FLAG_W ));
+                ret = get_enclave_creator()->emodpr((uint64_t)m_start_addr + layout->entry.rva, (uint64_t)layout->entry.page_count << SE_PAGE_SHIFT, (uint64_t)(SI_FLAG_R |SI_FLAG_W ));
                 if (ret != SGX_SUCCESS)
                     return SGX_ERROR_UNEXPECTED;
                 break;
