@@ -36,6 +36,7 @@ DeliveryName	InstallName	FileCheckSum	FileFeature	FileOwner
 <deliverydir>/build/linux/libsgx_urts_sim.so	<installdir>/package/lib64/libsgx_urts_sim.so	0	main	STP
 <deliverydir>/build/linux/libsgx_urts.a	<installdir>/package/lib64/libsgx_urts.a	0	main	STP
 <deliverydir>/build/linux/libsgx_urts_sim.a	<installdir>/package/lib64/libsgx_urts_sim.a	0	main	STP
+<deliverydir>/build/linux/libsgx_urts_sim_with_se_event.a	<installdir>/package/lib64/libsgx_urts_sim_with_se_event.a	0	main	STP
 <deliverydir>/build/linux/libc++_Changes_SGX.txt	<installdir>/package/lib64/libc++_Changes_SGX.txt	0	main	STP
 <deliverydir>/build/linux/sgx_config_cpusvn	<installdir>/package/bin/x64/sgx_config_cpusvn	0	main	STP
 <deliverydir>/build/linux/sgx_edger8r	<installdir>/package/bin/x64/sgx_edger8r	0	main	STP
