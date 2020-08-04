@@ -122,6 +122,7 @@ LDFLAGS += $(COMMON_LDFLAGS) -Wl,--version-script=$(LINUX_PSW_DIR)/urts/linux/ur
 
 LIBURTSSIM_SHARED := libsgx_urts_sim.so
 LIBURTSSIM_STATIC := libsgx_urts_sim.a
+LIBURTSSIM_STATIC_WITH_EVENT := libsgx_urts_sim_with_se_event.a
 LIBURTSSIM_DEBUG := libsgx_urts_sim.so.debug
 LIBURTS_DEPLOY := libsgx_urts_deploy.so
 
@@ -129,9 +130,10 @@ LDLIBS  += -lwrapper -lcrypto -Wl,-Bdynamic -Wl,-Bsymbolic -lsgx_uae_service_sim
 SONAME = $(LIBURTSSIM_SHARED)
 
 .PHONY: all
-all: $(LIBURTSSIM_SHARED) $(LIBURTSSIM_STATIC) $(LIBURTSSIM_DEBUG) $(LIBURTS_DEPLOY)| $(BUILD_DIR)
+all: $(LIBURTSSIM_SHARED) $(LIBURTSSIM_STATIC) $(LIBURTSSIM_STATIC_WITH_EVENT) $(LIBURTSSIM_DEBUG) $(LIBURTS_DEPLOY)| $(BUILD_DIR)
 	$(CP) $(LIBURTSSIM_SHARED) $|
 	$(CP) $(LIBURTSSIM_STATIC) $|
+	$(CP) $(LIBURTSSIM_STATIC_WITH_EVENT) $|
 	$(CP) $(LIBURTS_DEPLOY) $|
 ifndef DEBUG
 	$(CP) $(LIBURTSSIM_DEBUG) $|
@@ -147,7 +149,15 @@ $(LIBURTSSIM_STATIC): $(LIBURTSSIM_SHARED)
 	$(AR) x $(COMMON_DIR)/se_wrapper/libwrapper.a && \
 	$(AR) x $(VTUNE_DIR)/sdk/src/ittnotify/libittnotify.a && \
 	$(RM) -f se_event.o
-	$(AR) rsD $@ $(URTS_OBJ) $(BUILD_DIR)/.sgx_static_urts/*.o
+	$(AR) rsD $@ $(OBJ) $(OBJ6) $(BUILD_DIR)/.sgx_static_urts/*.o
+
+$(LIBURTSSIM_STATIC_WITH_EVENT): $(LIBURTSSIM_SHARED)
+	@$(MKDIR) $(BUILD_DIR)/.sgx_static_urts
+	@$(RM) -f $(BUILD_DIR)/.sgx_static_urts/*
+	cd $(BUILD_DIR)/.sgx_static_urts && \
+	$(AR) x $(COMMON_DIR)/se_wrapper/libwrapper.a && \
+	$(AR) x $(VTUNE_DIR)/sdk/src/ittnotify/libittnotify.a
+	$(AR) rsD $@ $(OBJ) $(OBJ6) $(BUILD_DIR)/.sgx_static_urts/*.o
 
 $(LIBURTSSIM_DEBUG): $(LIBURTSSIM_SHARED)
 ifndef DEBUG
@@ -197,7 +207,7 @@ $(LIBURTS_DEPLOY):../urts_deploy.c
 
 .PHONY: clean
 clean::
-	@$(RM) *.o $(LIBURTSSIM_SHARED) $(LIBURTS_DEPLOY) $(LIBURTSSIM_DEBUG) $(LIBURTSSIM_SHARED).orig 
+	@$(RM) *.o $(LIBURTSSIM_SHARED) $(LIBURTSSIM_STATIC) $(LIBURTSSIM_STATIC_WITH_EVENT) $(LIBURTS_DEPLOY) $(LIBURTSSIM_DEBUG) $(LIBURTSSIM_SHARED).orig 
 	@$(RM) $(BUILD_DIR)/$(LIBURTSSIM_SHARED) $(BUILD_DIR)/$(LIBURTS_DEPLOY) $(BUILD_DIR)/$(LIBURTSSIM_DEBUG)
 	$(MAKE) -C $(COMMON_DIR)/se_wrapper                                    clean
 	$(MAKE) -C $(SIM_DIR)/driver_api/                                      clean
