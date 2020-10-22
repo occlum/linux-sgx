@@ -30,7 +30,6 @@
 #
 #
 
-
 top_dir=`dirname $0`
 out_dir=$top_dir
 optlib_name=optimized_libs_2.11.tar.gz
@@ -38,10 +37,30 @@ ae_file_name=prebuilt_ae_2.11.tar.gz
 binutils_file_name=as.ld.objdump.gold.r2.tar.gz
 checksum_file=SHA256SUM_prebuilt_2.11.txt
 server_url_path=https://download.01.org/intel-sgx/sgx-linux/2.11/
+
+optlib_2_8_path=optlib
+optlib_name_2_8=optimized_libs_2.8.tar.gz
+optlib_url_path=https://download.01.org/intel-sgx/sgx-linux/2.8/$optlib_name_2_8
+
 server_optlib_url=$server_url_path/$optlib_name
 server_ae_url=$server_url_path/$ae_file_name
 server_binutils_url=$server_url_path/$binutils_file_name
 server_checksum_url=$server_url_path/$checksum_file
+
+rm -rf $out_dir/$optlib_2_8_path
+wget $optlib_url_path -P $out_dir/$optlib_2_8_path
+if [ $? -ne 0 ]; then
+    echo "Fail to download file $optlib_name_2_8"
+    exit -1
+fi
+
+pushd $out_dir/$optlib_2_8_path
+tar -zxf $optlib_name_2_8
+rm -f $optlib_name_2_8
+cp -r external/libirc ../external/
+cp -r external/libm ../external/
+popd
+
 
 rm -f $out_dir/$optlib_name
 wget $server_optlib_url -P $out_dir

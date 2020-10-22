@@ -43,9 +43,18 @@ CPPFLAGS += -I.                          \
             -I$(LINUX_SDK_DIR)/trts      \
             -I./gdtoa
 
+ifeq ($(USE_OPT_LIBS), 2)
+CFLAGS += -D_TLIBC_USE_INTEL_FAST_STRING_
+CXXFLAGS += -D_TLIBC_USE_INTEL_FAST_STRING_
+C_SRCS := $(wildcard gen/*.c gdtoa/*.c locale/*.c stdlib/*.c string/*.c stdio/*.c time/*.c math/opt/*.c)
+LIBC_C_SRCS := $(filter-out $(wildcard gen/fpclassify*.c gen/isfinite*.c gen/isinf*.c gen/isnan*.c gen/isnormal*.c gen/signbit*.c), $(C_SRCS))
+LIBC_CPP_SRCS := $(wildcard gen/*.cpp) tstdc_version.cpp
+LIBC_ASM_SRCS := $(wildcard gen/*.S)
+else
 LIBC_C_SRCS := $(wildcard gen/*.c gdtoa/*.c locale/*.c math/*.c stdlib/*.c string/*.c stdio/*.c time/*.c) 
 LIBC_CPP_SRCS := $(wildcard gen/*.cpp) tstdc_version.cpp
 LIBC_ASM_SRCS := $(wildcard gen/*.S math/*.S)
+endif
 
 LIBC_OBJS := $(LIBC_C_SRCS:.c=.o)
 LIBC_OBJS += $(LIBC_CPP_SRCS:.cpp=.o)
@@ -74,4 +83,4 @@ string/consttime_memequal.o: string/consttime_memequal.c
 
 .PHONY: clean
 clean:
-	@$(RM) $(LIBC_NAME) $(LIBC_OBJS)
+	$(RM) $(LIBC_NAME) $(LIBC_OBJS) math/opt/*.o

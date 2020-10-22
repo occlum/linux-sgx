@@ -252,6 +252,7 @@ ENCLAVE_ASFLAGS = $(MITIGATION_ASFLAGS)
 # Two build combinations are supported to build SGX SDK:
 #   'USE_OPT_LIBS=0' --- build SDK using SGXSSL + open sourced String/Math
 #   'USE_OPT_LIBS=1' --- build SDK using optimized IPP crypto + open sourced String/Math
+#   'USE_OPT_LIBS=2' --- build SDK using optimized IPP crypto + optimized String/Math
 #
 # By default, choose to build SDK using optimized IPP crypto and open sourced String/Math.
 # Users could build the SDK using SGXSSL + open sourced String/Math by explicitly 

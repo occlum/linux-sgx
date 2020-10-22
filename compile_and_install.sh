@@ -10,8 +10,8 @@ make clean
 
 # Compile SDK and install
 if [ "no_mitigation" = "$1" ]; then
-  make sdk_no_mitigation
-  make sdk_install_pkg_no_mitigation
+  make sdk_no_mitigation $2
+  make sdk_install_pkg_no_mitigation $2
 else
   make sdk
   make sdk_install_pkg
