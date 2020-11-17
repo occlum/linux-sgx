@@ -35,7 +35,7 @@
 #include <linux/futex.h>
 #include <sys/time.h>
 
-int se_event_timeout_wait(se_handle_t se_event, const struct timespec *ts, int *err)
+int se_event_timeout_wait(se_handle_t se_event, int clockbit, const struct timespec *ts, int *err)
 {
     int ret = 0;
 
@@ -43,7 +43,11 @@ int se_event_timeout_wait(se_handle_t se_event, const struct timespec *ts, int *
         return SE_MUTEX_INVALID;
 
     if (__sync_fetch_and_add((int*)se_event, -1) == 0) {
-        ret = (int)syscall(__NR_futex, se_event, FUTEX_WAIT, -1, ts, NULL, 0);
+        if (clockbit & FUTEX_CLOCK_REALTIME) {
+            ret = (int)syscall(__NR_futex, se_event, FUTEX_WAIT_BITSET | FUTEX_CLOCK_REALTIME, -1, ts, NULL, FUTEX_BITSET_MATCH_ANY);
+        } else {
+            ret = (int)syscall(__NR_futex, se_event, FUTEX_WAIT, -1, ts, NULL, 0);
+        }
         __sync_val_compare_and_swap((int*)se_event, -1, 0);
     }
     *err = ret < 0 ? errno : 0;
