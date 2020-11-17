@@ -55,7 +55,7 @@ se_handle_t SGXAPI se_event_init(void);
 void SGXAPI se_event_destroy(se_handle_t);
 
 int SGXAPI se_event_wait(se_handle_t);
-int SGXAPI se_event_timeout_wait(se_handle_t, const struct timespec *, int *);
+int SGXAPI se_event_timeout_wait(se_handle_t, int, const struct timespec *, int *);
 int SGXAPI se_event_wait_timeout(se_handle_t se_event, uint64_t timeout);
 int SGXAPI se_event_wake(se_handle_t);
 
