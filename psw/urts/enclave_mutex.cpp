@@ -52,7 +52,7 @@ extern "C" int sgx_thread_wait_untrusted_event_ocall(const void *self)
     return SGX_SUCCESS;
 }
 
-extern "C" int sgx_thread_wait_untrusted_event_timeout_ocall(const void *self, const struct timespec *ts, int *err)
+extern "C" int sgx_thread_wait_untrusted_event_timeout_ocall(const void *self, int clockbit, const struct timespec *ts, int *err)
 {
     if (self == NULL)
         return SGX_ERROR_INVALID_PARAMETER;
@@ -61,7 +61,7 @@ extern "C" int sgx_thread_wait_untrusted_event_timeout_ocall(const void *self, c
     if (hevent == NULL)
         return SE_ERROR_MUTEX_GET_EVENT;
 
-    if (SE_MUTEX_SUCCESS != se_event_timeout_wait(hevent, ts, err))
+    if (SE_MUTEX_SUCCESS != se_event_timeout_wait(hevent, clockbit, ts, err))
         return SE_ERROR_MUTEX_WAIT_EVENT;
 
     return SGX_SUCCESS;
