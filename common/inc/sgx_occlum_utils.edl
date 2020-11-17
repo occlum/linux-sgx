@@ -1,6 +1,6 @@
 enclave {
     untrusted {
         /* Go outside and wait on my untrusted event with timeout */
-        [cdecl] int sgx_thread_wait_untrusted_event_timeout_ocall([user_check] const void *self, [in] const struct sgx_edl_timespec* ts, [out] int* err);
+        [cdecl] int sgx_thread_wait_untrusted_event_timeout_ocall([user_check] const void *self, int clockbit, [in] const struct sgx_edl_timespec* ts, [out] int* err);
     };
 };
