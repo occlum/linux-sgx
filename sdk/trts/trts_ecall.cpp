@@ -539,46 +539,46 @@ sgx_status_t do_uninit_enclave(void *tcs)
     //  2. on HW mode
     // urts would not call this ECALL either on simulation mode
     // or on non-EDMM supported platform.
-    if (!EDMM_supported)
+    if (EDMM_supported)
     {
-        set_enclave_state(ENCLAVE_CRASHED);
-        return SGX_ERROR_UNEXPECTED;
-    }
-
-    if(!is_utility_thread() && is_dynamic_thread_exist())
-    {
-        set_enclave_state(ENCLAVE_CRASHED);
-        return SGX_ERROR_UNEXPECTED;
-    }
-
-    // Set uninit_flag to indicate the do_uninit_enclave is called
-    __sync_or_and_fetch(&g_uninit_flag, 1);
-
-    tcs_node_t *tcs_node = g_tcs_node;
-    g_tcs_node = NULL;
-    while (tcs_node != NULL)
-    {
-        if (DEC_TCS_POINTER(tcs_node->tcs) == tcs)
-        {
-            tcs_node_t *tmp = tcs_node;
-            tcs_node = tcs_node->next;
-            free(tmp);
-            continue;
-        }
-
-        size_t start = (size_t)DEC_TCS_POINTER(tcs_node->tcs);
-        size_t size = 1 << SE_PAGE_SHIFT;
-        int rc = mm_dealloc((void*)start, size);
-        if(rc != 0)
+        if (!is_utility_thread() && is_dynamic_thread_exist())
         {
             set_enclave_state(ENCLAVE_CRASHED);
             return SGX_ERROR_UNEXPECTED;
         }
 
-        tcs_node_t *tmp = tcs_node;
-        tcs_node = tcs_node->next;
-        free(tmp);
+        // Set uninit_flag to indicate the do_uninit_enclave is called
+        __sync_or_and_fetch(&g_uninit_flag, 1);
+
+        tcs_node_t *tcs_node = g_tcs_node;
+        g_tcs_node = NULL;
+        while (tcs_node != NULL)
+        {
+            if (DEC_TCS_POINTER(tcs_node->tcs) == tcs)
+            {
+                tcs_node_t *tmp = tcs_node;
+                tcs_node = tcs_node->next;
+                free(tmp);
+                continue;
+            }
+
+            size_t start = (size_t)DEC_TCS_POINTER(tcs_node->tcs);
+            size_t size = 1 << SE_PAGE_SHIFT;
+            int rc = mm_dealloc((void*)start, size);
+            if(rc != 0)
+            {
+                set_enclave_state(ENCLAVE_CRASHED);
+                return SGX_ERROR_UNEXPECTED;
+            }
+
+            tcs_node_t *tmp = tcs_node;
+            tcs_node = tcs_node->next;
+            free(tmp);
+        }
     }
+#else
+    UNUSED(tcs);
+#endif
 
     sgx_spin_lock(&g_ife_lock);
     if (!g_is_first_ecall)
@@ -586,9 +586,7 @@ sgx_status_t do_uninit_enclave(void *tcs)
         uninit_global_object();
     }
     sgx_spin_unlock(&g_ife_lock);
-#else
-    UNUSED(tcs);
-#endif    
+
     set_enclave_state(ENCLAVE_CRASHED);
 
     return SGX_SUCCESS;

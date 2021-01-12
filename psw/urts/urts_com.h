@@ -649,8 +649,7 @@ extern "C" sgx_status_t sgx_destroy_enclave(const sgx_enclave_id_t enclave_id)
             debug_enclave_info_t *debug_info = const_cast<debug_enclave_info_t *>(enclave->get_debug_info());
             generate_enclave_debug_event(URTS_EXCEPTION_PREREMOVEENCLAVE, debug_info);
             enclave->destroy_uswitchless();
-            if (get_enclave_creator()->is_EDMM_supported(enclave->get_enclave_id()))
-                enclave->ecall(ECMD_UNINIT_ENCLAVE, NULL, NULL);
+            enclave->ecall(ECMD_UNINIT_ENCLAVE, NULL, NULL);
             CEnclavePool::instance()->unref_enclave(enclave);
         }
     }
