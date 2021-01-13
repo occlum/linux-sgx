@@ -694,7 +694,7 @@ class GetTCSBreakpoint(gdb.Breakpoint):
             gdb.execute(gdb_cmd, False, True)
         return False
 
-class GetMuslLoadLibraryReturnBreakpoint(gdb.FinishBreakpoint):
+class GetLdLoadLibraryReturnBreakpoint(gdb.FinishBreakpoint):
     def __init__(self):
         gdb.FinishBreakpoint.__init__ (self, gdb.newest_frame(), internal=1)
         self.silent = True
@@ -718,12 +718,15 @@ class GetMuslLoadLibraryReturnBreakpoint(gdb.FinishBreakpoint):
         gdb.execute(gdb_cmd, False, True)
         return False
 
-class GetMuslLoadLibraryBreakpoint(gdb.Breakpoint):
+class GetLdLoadLibraryBreakpoint(gdb.Breakpoint):
     def __init__(self):
+        # for Musl
         gdb.Breakpoint.__init__ (self, spec="load_library", internal=1)
+        # for Glibc
+        gdb.Breakpoint.__init__ (self, spec="_dl_map_object", internal=1)
 
     def stop(self):
-        GetMuslLoadLibraryReturnBreakpoint()
+        GetLdLoadLibraryReturnBreakpoint()
         return False
 
 class GetOcclumElfBreakpoint(gdb.Breakpoint):
@@ -746,9 +749,8 @@ class GetOcclumElfBreakpoint(gdb.Breakpoint):
             return 0
         print (gdb_cmd)
         gdb.execute(gdb_cmd, False, True)
-        GetMuslLoadLibraryBreakpoint()
+        GetLdLoadLibraryBreakpoint()
         return False
-
 
 def sgx_debugger_init():
     print ("detect urts is loaded, initializing")
