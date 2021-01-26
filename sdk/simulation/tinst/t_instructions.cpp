@@ -304,7 +304,6 @@ static void arch_prctl(int code, unsigned long addr)
         abort();
     }
 }
-
 static void
 _EEXIT(uintptr_t dest, uintptr_t xcx, uintptr_t xdx, uintptr_t xsi, uintptr_t xdi) __attribute__((section(".nipx")));
 
