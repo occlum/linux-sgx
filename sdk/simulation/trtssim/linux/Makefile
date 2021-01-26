@@ -123,7 +123,7 @@ $(TINST_OBJS):   CPPFLAGS += -I$(SIM_DIR)/assembly/    \
 
 # $(TLS_OBJS):     CPPFLAGS += -I$(SIM_DIR)/assembly/ \
 #                              -I$(SIM_DIR)/assembly/linux \
-#                              -I$(SIM_DIR)/uinst/
+#                             -I$(SIM_DIR)/uinst/
 
 $(TLDR_C_OBJS):  CPPFLAGS += -I$(COMMON_DIR)/inc/internal/linux/ \
                              -I$(SIM_DIR)/assembly/
