@@ -105,7 +105,6 @@ void call_old_handler(int signum, void* siginfo, void *priv)
 
         sigset_t cur_set;
         pthread_sigmask(SIG_SETMASK, &g_old_sigact[signum].sa_mask, &cur_set);
-
         if(g_old_sigact[signum].sa_flags & SA_SIGINFO)
         {
 
@@ -277,6 +276,8 @@ uintptr_t _EINIT(secs_t* secs, enclave_css_t *css, token_t *launch)
                 "SECS attributes.flag does NOT match signature attributes.flag\n");
             return SGX_ERROR_INVALID_ATTRIBUTE;
         }
+
+        reg_sig_handler_sim();
 
         // From SDM, ISVFAMILYID and ISVEXTPRODID are both included in the secs->reserved4
         isv_ext_id_t* isv_ext_id = reinterpret_cast<isv_ext_id_t *>(this_secs->reserved4);
