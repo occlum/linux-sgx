@@ -103,7 +103,6 @@ void call_old_handler(int signum, void* siginfo, void *priv)
 
         sigset_t cur_set;
         pthread_sigmask(SIG_SETMASK, &g_old_sigact[signum].sa_mask, &cur_set);
-
         if(g_old_sigact[signum].sa_flags & SA_SIGINFO)
         {
 
@@ -275,6 +274,8 @@ uintptr_t _EINIT(secs_t* secs, enclave_css_t *css, token_t *launch)
                 "SECS attributes.flag does NOT match signature attributes.flag\n");
             return SGX_ERROR_INVALID_ATTRIBUTE;
         }
+
+        reg_sig_handler_sim();
 
         mcp_same_size(&this_secs->mr_enclave, &css->body.enclave_hash, sizeof(sgx_measurement_t));
         this_secs->isv_prod_id = css->body.isv_prod_id;
