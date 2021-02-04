@@ -120,14 +120,15 @@ void call_old_handler(int signum, void* siginfo, void *priv)
             g_old_sigact[signum].sa_handler = SIG_DFL;
     }
 }
-void sig_handler_sim(int signum, siginfo_t* siginfo, void *priv)  __attribute__((optimize(0))) __attribute__((optimize("no-stack-protector")));
-void sig_handler_sim(int signum, siginfo_t* siginfo, void *priv)
+#define SIGRT_INTERRUPT (64)
+void sig_handler_sim(int signum, siginfo_t *siginfo, void *priv) __attribute__((optimize(0))) __attribute__((optimize("no-stack-protector")));
+void sig_handler_sim(int signum, siginfo_t *siginfo, void *priv)
 {
-    GP_ON(signum != SIGFPE && signum != SIGSEGV);
+    GP_ON(signum != SIGFPE && signum != SIGSEGV && signum != SIGRT_INTERRUPT);
     
     thread_data_t *thread_data = 0;
-    asm volatile("mov %%gs:0, %0":"=r"(thread_data));
-    if (thread_data != NULL) 
+    arch_prctl(ARCH_GET_GS, (unsigned long)&thread_data);
+    if (thread_data != NULL && (uintptr_t)thread_data == (uintptr_t)thread_data->self_addr)
     {
         // first SSA can be used to get tcs, even cssa > 0.
         ssa_gpr_t *p_ssa_gpr = (ssa_gpr_t*)thread_data->first_ssa_gpr;
@@ -240,12 +241,19 @@ void reg_sig_handler_sim()
     {
         sigdelset(&sig_act.sa_mask, SIGSEGV);
         sigdelset(&sig_act.sa_mask, SIGFPE);
+        sigdelset(&sig_act.sa_mask, SIGRT_INTERRUPT);
     }
 
     ret = sigaction(SIGSEGV, &sig_act, &g_old_sigact[SIGSEGV]);
     if (0 != ret) abort();
     ret = sigaction(SIGFPE, &sig_act, &g_old_sigact[SIGFPE]);
-    if (0 != ret) abort();
+    if (0 != ret)
+        abort();
+
+    sig_act.sa_flags = SA_SIGINFO | SA_NODEFER | SA_ONSTACK;
+    ret = sigaction(SIGRT_INTERRUPT, &sig_act, &g_old_sigact[SIGRT_INTERRUPT]);
+    if (0 != ret)
+        abort();
 }
 
 uintptr_t _EINIT(secs_t* secs, enclave_css_t *css, token_t *launch)
@@ -430,9 +438,7 @@ void _SE3(uintptr_t xax, uintptr_t xbx,
         secs = ce->get_secs();
         enclave_base_addr = secs->base;
 
-        p_ssa_gpr = reinterpret_cast<ssa_gpr_t*>(reinterpret_cast<uintptr_t>(enclave_base_addr) + static_cast<size_t>(tcs->ossa)
-                + secs->ssa_frame_size * SE_PAGE_SIZE
-                - sizeof(ssa_gpr_t));
+        p_ssa_gpr = reinterpret_cast<ssa_gpr_t *>(reinterpret_cast<uintptr_t>(enclave_base_addr) + static_cast<size_t>(tcs->ossa) + (secs->ssa_frame_size * SE_PAGE_SIZE) * (tcs->cssa + 1) - sizeof(ssa_gpr_t));
 
         tcs_sim->saved_aep = xcx;
 
@@ -481,7 +487,7 @@ void _SE3(uintptr_t xax, uintptr_t xbx,
         // Returning from this function enters the enclave
         return;
     case SE_ERESUME:
-        char buf[512];
+        char buf[512] __attribute((aligned (16)));
         fxsave_regs(buf);
         SE_TRACE(SE_TRACE_DEBUG, "ERESUME instruction\n");
         // xbx contains the address of a TCS
@@ -509,8 +515,7 @@ void _SE3(uintptr_t xax, uintptr_t xbx,
                 + (tcs->cssa+1) * secs->ssa_frame_size * SE_PAGE_SIZE
                 - sizeof(ssa_gpr_t));
 
-        memcpy((char*)((size_t)p_ssa_gpr + sizeof(ssa_gpr_t) - secs->ssa_frame_size * SE_PAGE_SIZE), buf, sizeof(buf));
-        fxrstor_regs((char*)((size_t)p_ssa_gpr + sizeof(ssa_gpr_t) - secs->ssa_frame_size * SE_PAGE_SIZE));
+        fxrstor_regs(buf);
         regs.xax = p_ssa_gpr->REG(ax);
         regs.xbx = p_ssa_gpr->REG(bx);
         regs.xdx = p_ssa_gpr->REG(dx);
