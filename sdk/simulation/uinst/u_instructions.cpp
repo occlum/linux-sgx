@@ -122,12 +122,17 @@ void call_old_handler(int signum, void* siginfo, void *priv)
             g_old_sigact[signum].sa_handler = SIG_DFL;
     }
 }
-
+#define SIGRT_INTERRUPT (64)
 void sig_handler_sim(int signum, siginfo_t *siginfo, void *priv) __attribute__((optimize(0))) __attribute__((optimize("no-stack-protector")));
 void sig_handler_sim(int signum, siginfo_t *siginfo, void *priv)
 {
-    GP_ON(signum != SIGFPE && signum != SIGSEGV);
+    GP_ON(signum != SIGFPE && signum != SIGSEGV && signum != SIGRT_INTERRUPT);
 
+    // Notes for Occlum: ignore SIG64 here for simplification.
+    // With SIG64 ignored, Occlum running in user mode won't be interrupted.
+    if (signum == SIGRT_INTERRUPT)
+        return;
+    
     thread_data_t *thread_data = 0;
     arch_prctl(ARCH_GET_GS, (unsigned long)&thread_data);
     if (thread_data != NULL && (uintptr_t)thread_data == (uintptr_t)thread_data->self_addr)
@@ -167,7 +172,7 @@ void sig_handler_sim(int signum, siginfo_t *siginfo, void *priv)
                     size_t xip = context->uc_mcontext.gregs[REG_RIP];
                     secs_t *secs = ce->get_secs();
                     if (secs && (xip >= (size_t)secs->base) && (xip < (size_t)secs->base + secs->size))
-	            {
+	                {
                         GP_ON(tcs->cssa >= tcs->nssa);
                         p_ssa_gpr = (ssa_gpr_t*)((size_t)p_ssa_gpr + tcs->cssa * secs->ssa_frame_size * SE_PAGE_SIZE);
                         p_ssa_gpr->REG(ax) = context->uc_mcontext.gregs[REG_RAX];
@@ -217,13 +222,13 @@ void sig_handler_sim(int signum, siginfo_t *siginfo, void *priv)
                             p_ssa_gpr->exit_info.vector = 0;   //#DE
                         }
                         else
-		        {
+		                {
                             p_ssa_gpr->exit_info.valid = 0;
                         }
                         tcs->cssa +=1;
                     }
-	        }
-	    }
+                }
+            }
         }
     }
     call_old_handler(signum, siginfo, priv);
@@ -254,9 +259,13 @@ void reg_sig_handler_sim()
         sigdelset(&sig_act.sa_mask, SIGSEGV);
         sigdelset(&sig_act.sa_mask, SIGFPE);
     }
+    sigdelset(&sig_act.sa_mask, SIGRT_INTERRUPT);
+
     ret = sigaction(SIGSEGV, &sig_act, &g_old_sigact[SIGSEGV]);
     if (0 != ret) abort();
     ret = sigaction(SIGFPE, &sig_act, &g_old_sigact[SIGFPE]);
+    if (0 != ret) abort();
+    ret = sigaction(SIGRT_INTERRUPT, &sig_act, &g_old_sigact[SIGRT_INTERRUPT]);
     if (0 != ret) abort();
 }
 
@@ -544,8 +553,7 @@ void _SE3(uintptr_t xax, uintptr_t xbx,
         __atomic_exchange(&tcs_sim->tcs_state, &tcs_target_state, &tcs_current_state, __ATOMIC_RELAXED);
         GP_ON_EENTER(tcs_current_state != TCS_STATE_INACTIVE);
 
-
-	tcs->cssa -=1;
+        tcs->cssa -=1;
 
         secs = ce->get_secs();
         enclave_base_addr = secs->base;
