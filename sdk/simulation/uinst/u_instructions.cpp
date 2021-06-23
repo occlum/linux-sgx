@@ -125,6 +125,11 @@ void sig_handler_sim(int signum, siginfo_t *siginfo, void *priv) __attribute__((
 void sig_handler_sim(int signum, siginfo_t *siginfo, void *priv)
 {
     GP_ON(signum != SIGFPE && signum != SIGSEGV && signum != SIGRT_INTERRUPT);
+
+    // Notes for Occlum: ignore SIG64 here for simplification.
+    // With SIG64 ignored, Occlum running in user mode won't be interrupted.
+    if (signum == SIGRT_INTERRUPT)
+        return;
     
     thread_data_t *thread_data = 0;
     arch_prctl(ARCH_GET_GS, (unsigned long)&thread_data);
