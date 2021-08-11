@@ -359,8 +359,6 @@ uintptr_t _ECREATE(page_info_t* pi)
         return 0;
     }
 
-    // Mark all the memory inaccessible.
-    se_virtual_protect(addr, (size_t)secs->size, SGX_PROT_NONE);
     ce->get_secs()->base = addr;
 
     CEnclaveMngr::get_instance()->add(ce);

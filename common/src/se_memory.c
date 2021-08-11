@@ -38,7 +38,8 @@
 void* se_virtual_alloc(void* address, size_t size, uint32_t type)
 {
     UNUSED(type);
-    void* pRet = mmap(address, size, PROT_READ | PROT_WRITE, MAP_PRIVATE |  MAP_ANONYMOUS, -1, 0);
+    int protection = PROT_NONE; // Memory just reserved, not committed.
+    void* pRet = mmap(address, size, protection, MAP_PRIVATE |  MAP_ANONYMOUS, -1, 0);
     if(MAP_FAILED == pRet)
         return NULL;
     return pRet;
