@@ -366,15 +366,12 @@ uintptr_t _ECREATE(page_info_t* pi)
     
     // `ce' is not checked against NULL, since it is not
     // allocated with new(std::no_throw).
-    addr = mmap(secs->base, (size_t)secs->size, PROT_READ | PROT_WRITE, mmap_flag, -1, 0);
+    addr = mmap(secs->base, (size_t)secs->size, SGX_PROT_NONE, mmap_flag, -1, 0);
     if(MAP_FAILED == addr)
     {
         delete ce;
         return 0;
     }
-
-    // Mark all the memory inaccessible.
-    se_virtual_protect(addr, (size_t)secs->size, SGX_PROT_NONE);
 
     //set image_offset
     if(image_offset != 0)
