@@ -217,8 +217,15 @@ void sig_handler_sim(int signum, siginfo_t *siginfo, void *priv)
 }
 
 #define SIG_STACK_SIZE (4096*10)
+#include <atomic>
+std::atomic<bool> sig_handler_registed (false);
 void reg_sig_handler_sim()
 {
+    if (sig_handler_registed)
+        return;
+
+    SE_TRACE(SE_TRACE_DEBUG, "signal hander for simulation registed\n");
+
     int ret = 0;
     struct sigaction sig_act;
     stack_t ss;
@@ -249,6 +256,8 @@ void reg_sig_handler_sim()
     if (0 != ret) abort();
     ret = sigaction(SIGRT_INTERRUPT, &sig_act, &g_old_sigact[SIGRT_INTERRUPT]);
     if (0 != ret) abort();
+
+    sig_handler_registed = true;
 }
 
 uintptr_t _EINIT(secs_t* secs, enclave_css_t *css, token_t *launch)
