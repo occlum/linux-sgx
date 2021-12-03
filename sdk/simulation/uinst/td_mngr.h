@@ -43,6 +43,8 @@ typedef struct _tcs_sim_t
     size_t    tcs_state;
     uintptr_t saved_dtv;
     uintptr_t saved_fs_gs_0;
+    uintptr_t saved_fs_base;
+    uintptr_t saved_gs_base;
     uint64_t  tcs_offset_update_flag;
 } tcs_sim_t;
 
