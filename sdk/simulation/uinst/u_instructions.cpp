@@ -37,6 +37,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <signal.h>
+#include <asm/prctl.h>
+#include <sys/prctl.h>
 #include <errno.h>
 
 #include "arch.h"
@@ -60,7 +62,7 @@ static uintptr_t _EINIT(secs_t* secs, enclave_css_t* css, token_t* launch);
 static uintptr_t _ECREATE (page_info_t* pi);
 static uintptr_t _EADD (page_info_t* pi, void* epc_lin_addr);
 static uintptr_t _EREMOVE(const void* epc_lin_addr);
-extern "C" void* get_td_addr(void);
+extern "C" int arch_prctl(int code, unsigned long addr);
 extern "C" bool get_elrange_start_address(void* base_address, uint64_t &elrange_start_address);
 
 static __thread uintptr_t _dtv_u = 0;
@@ -125,9 +127,12 @@ void call_old_handler(int signum, void* siginfo, void *priv)
 void sig_handler_sim(int signum, siginfo_t *siginfo, void *priv) __attribute__((optimize(0))) __attribute__((optimize("no-stack-protector")));
 void sig_handler_sim(int signum, siginfo_t *siginfo, void *priv)
 {
-    GP_ON(signum != SIGFPE && signum != SIGSEGV && signum != SIGRT_INTERRUPT);
+    // FIXME:workaround the simulation issue
+    // GP_ON(signum != SIGFPE && signum != SIGSEGV && signum != SIGRT_INTERRUPT);
+    GP_ON(signum != SIGFPE && signum != SIGSEGV);
 
-    thread_data_t *thread_data = (thread_data_t*)get_td_addr();
+    thread_data_t *thread_data = 0;
+    arch_prctl(ARCH_GET_GS, (unsigned long)&thread_data);
     if (thread_data != NULL && _dtv_u != 0 && (uintptr_t)thread_data != _dtv_u && (uintptr_t)thread_data == (uintptr_t)thread_data->self_addr)
     {
         // first SSA can be used to get tcs, even cssa > 0.
@@ -145,6 +150,15 @@ void sig_handler_sim(int signum, siginfo_t *siginfo, void *priv)
             {
                 size_t tcs_target_state = TCS_STATE_INACTIVE;
                 __atomic_store(&tcs_sim->tcs_state, &tcs_target_state, __ATOMIC_RELAXED);
+
+                // save FS, GS base address
+                uint64_t tmp_fs_base = 0, tmp_gs_base = 0;
+                arch_prctl(ARCH_GET_FS, (unsigned long)&tmp_fs_base);
+                arch_prctl(ARCH_GET_GS, (unsigned long)&tmp_gs_base);
+
+                // restore FS, GS base address
+                arch_prctl(ARCH_SET_FS, tcs_sim->saved_fs_base);
+                arch_prctl(ARCH_SET_GS, tcs_sim->saved_gs_base);
 
                 CEnclaveMngr *mngr = CEnclaveMngr::get_instance();
                 assert(mngr != NULL);
@@ -177,6 +191,8 @@ void sig_handler_sim(int signum, siginfo_t *siginfo, void *priv)
                         p_ssa_gpr->r14 = context->uc_mcontext.gregs[REG_R14];
                         p_ssa_gpr->r15 = context->uc_mcontext.gregs[REG_R15];
                         p_ssa_gpr->rflags = context->uc_flags;
+                        p_ssa_gpr->fs = tmp_fs_base;
+                        p_ssa_gpr->gs = tmp_gs_base;
 
                         context->uc_mcontext.gregs[REG_RAX] = SE_ERESUME;
                         context->uc_mcontext.gregs[REG_RBX] = (size_t)tcs;
@@ -248,14 +264,18 @@ void reg_sig_handler_sim()
         sigdelset(&sig_act.sa_mask, SIGSEGV);
         sigdelset(&sig_act.sa_mask, SIGFPE);
     }
-    sigdelset(&sig_act.sa_mask, SIGRT_INTERRUPT);
+
+    // FIXME:workaround the simulation issue
+    // sigdelset(&sig_act.sa_mask, SIGRT_INTERRUPT);
 
     ret = sigaction(SIGSEGV, &sig_act, &g_old_sigact[SIGSEGV]);
     if (0 != ret) abort();
     ret = sigaction(SIGFPE, &sig_act, &g_old_sigact[SIGFPE]);
     if (0 != ret) abort();
-    ret = sigaction(SIGRT_INTERRUPT, &sig_act, &g_old_sigact[SIGRT_INTERRUPT]);
-    if (0 != ret) abort();
+
+    // FIXME:workaround the simulation issue
+    // ret = sigaction(SIGRT_INTERRUPT, &sig_act, &g_old_sigact[SIGRT_INTERRUPT]);
+    // if (0 != ret) abort();
 
     sig_handler_registed = true;
 }
@@ -508,8 +528,9 @@ void _SE3(uintptr_t xax, uintptr_t xbx,
         xip = reinterpret_cast<uintptr_t>(enclave_base_addr);
         GP_ON_EENTER(xip == 0);
 
-        //set the _tls_array to point to the self_addr of TLS section inside the enclave
-        GP_ON_EENTER(td_mngr_set_td(enclave_base_addr, tcs) == false);
+        // save FS, GS base address
+        arch_prctl(ARCH_GET_FS, (unsigned long)&tcs_sim->saved_fs_base);
+        arch_prctl(ARCH_GET_GS, (unsigned long)&tcs_sim->saved_gs_base);
  
         // Destination depends on STATE
         xip += (uintptr_t)tcs->oentry;
@@ -532,6 +553,10 @@ void _SE3(uintptr_t xax, uintptr_t xbx,
         regs.xbp = p_ssa_gpr->REG(bp_u);
         regs.xsp = p_ssa_gpr->REG(sp_u);
         regs.xip = xip;
+
+        // adjust the FS, GS base address
+        arch_prctl(ARCH_SET_FS, (unsigned long)enclave_base_addr + tcs->ofs_base);
+        arch_prctl(ARCH_SET_GS, (unsigned long)enclave_base_addr + tcs->ogs_base);
 
         load_regs(&regs);
 
@@ -580,6 +605,10 @@ void _SE3(uintptr_t xax, uintptr_t xbx,
         regs.xsp = p_ssa_gpr->REG(sp);
         regs.xbp = p_ssa_gpr->REG(bp);
         regs.xip = p_ssa_gpr->REG(ip);
+
+        // adjust the FS, GS base address
+        arch_prctl(ARCH_SET_FS, p_ssa_gpr->fs);
+        arch_prctl(ARCH_SET_GS, p_ssa_gpr->gs);
 
         load_regs(&regs);
         return;
