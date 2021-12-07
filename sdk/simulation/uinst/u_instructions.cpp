@@ -127,9 +127,7 @@ void call_old_handler(int signum, void* siginfo, void *priv)
 void sig_handler_sim(int signum, siginfo_t *siginfo, void *priv) __attribute__((optimize(0))) __attribute__((optimize("no-stack-protector")));
 void sig_handler_sim(int signum, siginfo_t *siginfo, void *priv)
 {
-    // FIXME:workaround the simulation issue
-    // GP_ON(signum != SIGFPE && signum != SIGSEGV && signum != SIGRT_INTERRUPT);
-    GP_ON(signum != SIGFPE && signum != SIGSEGV);
+    GP_ON(signum != SIGFPE && signum != SIGSEGV && signum != SIGRT_INTERRUPT);
 
     thread_data_t *thread_data = 0;
     arch_prctl(ARCH_GET_GS, (unsigned long)&thread_data);
@@ -143,15 +141,14 @@ void sig_handler_sim(int signum, siginfo_t *siginfo, void *priv)
         {
             tcs_sim_t *tcs_sim = reinterpret_cast<tcs_sim_t *>(tcs->reserved);
 
-            size_t tcs_current_state = TCS_STATE_ACTIVE;
-            __atomic_load(&tcs_sim->tcs_state, &tcs_current_state, __ATOMIC_RELAXED);
+            size_t tcs_target_state = TCS_STATE_INACTIVE;
+            size_t tcs_current_state = TCS_STATE_INACTIVE;
+            __atomic_exchange(&tcs_sim->tcs_state, &tcs_target_state, &tcs_current_state, __ATOMIC_RELAXED);
 
             if (tcs_current_state == TCS_STATE_ACTIVE)
             {
-                size_t tcs_target_state = TCS_STATE_INACTIVE;
-                __atomic_store(&tcs_sim->tcs_state, &tcs_target_state, __ATOMIC_RELAXED);
-
                 // save FS, GS base address
+                bool user_interrupt = false;
                 uint64_t tmp_fs_base = 0, tmp_gs_base = 0;
                 arch_prctl(ARCH_GET_FS, (unsigned long)&tmp_fs_base);
                 arch_prctl(ARCH_GET_GS, (unsigned long)&tmp_gs_base);
@@ -169,8 +166,11 @@ void sig_handler_sim(int signum, siginfo_t *siginfo, void *priv)
                     ucontext_t* context = reinterpret_cast<ucontext_t *>(priv);
                     size_t xip = context->uc_mcontext.gregs[REG_RIP];
                     secs_t *secs = ce->get_secs();
-                    if (secs && (xip >= (size_t)secs->base) && (xip < (size_t)secs->base + secs->size))
-	                {
+
+                    //Workaround for Occlum. Occlum only handle user application exception
+                    if (secs && (xip >= (size_t)tcs) && (xip < (size_t)secs->base + secs->size))
+                    {
+                        user_interrupt = true;
                         GP_ON(tcs->cssa >= tcs->nssa);
                         p_ssa_gpr = (ssa_gpr_t*)((size_t)p_ssa_gpr + tcs->cssa * secs->ssa_frame_size * SE_PAGE_SIZE);
                         p_ssa_gpr->REG(ax) = context->uc_mcontext.gregs[REG_RAX];
@@ -226,6 +226,12 @@ void sig_handler_sim(int signum, siginfo_t *siginfo, void *priv)
                         tcs->cssa +=1;
                     }
                 }
+
+                if (user_interrupt == false) {
+                    // restore FS, GS base address
+                    arch_prctl(ARCH_SET_FS, tmp_fs_base);
+                    arch_prctl(ARCH_SET_GS, tmp_gs_base);
+                }
             }
         }
     }
@@ -264,18 +270,17 @@ void reg_sig_handler_sim()
         sigdelset(&sig_act.sa_mask, SIGSEGV);
         sigdelset(&sig_act.sa_mask, SIGFPE);
     }
-
-    // FIXME:workaround the simulation issue
-    // sigdelset(&sig_act.sa_mask, SIGRT_INTERRUPT);
+    
+    sigdelset(&sig_act.sa_mask, SIGRT_INTERRUPT);
 
     ret = sigaction(SIGSEGV, &sig_act, &g_old_sigact[SIGSEGV]);
     if (0 != ret) abort();
     ret = sigaction(SIGFPE, &sig_act, &g_old_sigact[SIGFPE]);
     if (0 != ret) abort();
 
-    // FIXME:workaround the simulation issue
-    // ret = sigaction(SIGRT_INTERRUPT, &sig_act, &g_old_sigact[SIGRT_INTERRUPT]);
-    // if (0 != ret) abort();
+    ret = sigaction(SIGRT_INTERRUPT, &sig_act, &g_old_sigact[SIGRT_INTERRUPT]);
+    if (0 != ret)
+        abort();
 
     sig_handler_registed = true;
 }
