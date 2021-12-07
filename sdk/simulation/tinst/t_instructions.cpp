@@ -405,13 +405,11 @@ _EEXIT(uintptr_t dest, uintptr_t xcx, uintptr_t xdx, uintptr_t xsi, uintptr_t xd
     tcs_t *tcs = GET_TCS_PTR(xdx);
     GP_ON(tcs == NULL);
 
-    // check thread is in use or not
     tcs_sim_t *tcs_sim = reinterpret_cast<tcs_sim_t *>(tcs->reserved);
 
+    // Update the tcs status
     size_t tcs_target_state = TCS_STATE_INACTIVE;
-    size_t tcs_current_state = TCS_STATE_INACTIVE;
-    __atomic_exchange(&tcs_sim->tcs_state, &tcs_target_state, &tcs_current_state, __ATOMIC_RELAXED);
-    GP_ON(tcs_current_state!= TCS_STATE_ACTIVE);
+    __atomic_store(&tcs_sim->tcs_state, &tcs_target_state, __ATOMIC_RELAXED);
 
     regs.xax = 0;
     regs.xbx = dest;
