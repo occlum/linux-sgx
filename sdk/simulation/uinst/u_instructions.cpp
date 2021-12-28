@@ -190,7 +190,7 @@ void sig_handler_sim(int signum, siginfo_t *siginfo, void *priv)
                         p_ssa_gpr->r13 = context->uc_mcontext.gregs[REG_R13];
                         p_ssa_gpr->r14 = context->uc_mcontext.gregs[REG_R14];
                         p_ssa_gpr->r15 = context->uc_mcontext.gregs[REG_R15];
-                        p_ssa_gpr->rflags = context->uc_flags;
+                        p_ssa_gpr->rflags = context->uc_mcontext.gregs[REG_EFL];
                         p_ssa_gpr->fs = tmp_fs_base;
                         p_ssa_gpr->gs = tmp_gs_base;
 
