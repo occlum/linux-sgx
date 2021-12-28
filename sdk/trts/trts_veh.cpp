@@ -534,7 +534,6 @@ static bool is_standard_exception(uintptr_t xip)
     return false;
 }
 
-
 extern "C" sgx_status_t trts_handle_interrupt(void *tcs)
 {
     thread_data_t *thread_data = get_thread_data();
@@ -571,6 +570,11 @@ extern "C" sgx_status_t trts_handle_interrupt(void *tcs)
 
     if (!check_ip_interruptible(ssa_gpr->REG(ip))) {
         goto default_handler;
+    }
+
+    // Confirm enclave is execting the user code
+    if (ssa_gpr->fs == ssa_gpr->gs) {
+        return SGX_SUCCESS;
     }
 
     // The bottom 2 pages are used as stack to handle the non-standard exceptions.
@@ -610,8 +614,10 @@ extern "C" sgx_status_t trts_handle_interrupt(void *tcs)
         return SGX_ERROR_STACK_OVERRUN;
     }
 
-    // initialize the info with SSA[0]
+    // restore the fs
+    ssa_gpr->fs = ssa_gpr->gs;
 
+    // initialize the info with SSA[0]
     info->cpu_context.REG(ax) = ssa_gpr->REG(ax);
     info->cpu_context.REG(cx) = ssa_gpr->REG(cx);
     info->cpu_context.REG(dx) = ssa_gpr->REG(dx);
