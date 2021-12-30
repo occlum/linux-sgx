@@ -153,6 +153,12 @@ void sig_handler_sim(int signum, siginfo_t *siginfo, void *priv)
                 arch_prctl(ARCH_GET_FS, (unsigned long)&tmp_fs_base);
                 arch_prctl(ARCH_GET_GS, (unsigned long)&tmp_gs_base);
 
+                // Workaround for Occlum. Occlum only handle user application exception
+                // the fs_base is used by application which is not same as the gs_base used by Occlum
+                if (tmp_fs_base == tmp_gs_base) {
+                    return;
+                }
+
                 // restore FS, GS base address
                 arch_prctl(ARCH_SET_FS, tcs_sim->saved_fs_base);
                 arch_prctl(ARCH_SET_GS, tcs_sim->saved_gs_base);
