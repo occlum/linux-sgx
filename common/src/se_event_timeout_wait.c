@@ -35,7 +35,7 @@
 #include <linux/futex.h>
 #include <sys/time.h>
 
-int se_event_timeout_wait(se_handle_t se_event, int clockbit, const struct timespec *ts, int *err)
+int se_event_timeout_wait(se_handle_t se_event, int clockbit, const struct timespec *ts, int absolute_time, int *err)
 {
     int ret = 0;
 
@@ -43,9 +43,15 @@ int se_event_timeout_wait(se_handle_t se_event, int clockbit, const struct times
         return SE_MUTEX_INVALID;
 
     if (__sync_fetch_and_add((int*)se_event, -1) == 0) {
-        if (clockbit & FUTEX_CLOCK_REALTIME) {
-            ret = (int)syscall(__NR_futex, se_event, FUTEX_WAIT_BITSET | FUTEX_CLOCK_REALTIME, -1, ts, NULL, FUTEX_BITSET_MATCH_ANY);
+        // From futex man page:
+        // For FUTEX_WAIT, timeout is interpreted as a relative value. This differs from other futex operations, where
+        // timeout is interpreted as an absolute value. To obtain the equivalent of FUTEX_WAIT with an absolute timeout,
+        // employ FUTEX_WAIT_BITSET with val3 specified as FUTEX_BITSET_MATCH_ANY.
+        if (absolute_time == 1) {
+            ret = (int)syscall(__NR_futex, se_event, FUTEX_WAIT_BITSET | clockbit, -1, ts, NULL, FUTEX_BITSET_MATCH_ANY);
         } else {
+            // FUTEX_WAIT can't work with FUTEX_CLOCK_REALTIME in Linux. Thus, ignore the clockbit.
+            // Reference: https://github.com/torvalds/linux/commit/4fbf5d6837bf81fd7a27d771358f4ee6c4f243f8
             ret = (int)syscall(__NR_futex, se_event, FUTEX_WAIT, -1, ts, NULL, 0);
         }
         __sync_val_compare_and_swap((int*)se_event, -1, 0);
