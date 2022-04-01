@@ -68,6 +68,8 @@ sgx_mm_pfhandler_t g_mm_pfhandler = NULL;
 #define ENC_VEH_POINTER(x)  (uintptr_t)(x) ^ g_veh_cookie
 #define DEC_VEH_POINTER(x)  (sgx_exception_handler_t)((x) ^ g_veh_cookie)
 
+#define XSAVE_PKRU_OFFSET   (2688)
+#define PKRU_LIBOS          (0x0)
 
 // sgx_register_exception_handler()
 //      register a custom exception handler
@@ -331,6 +333,8 @@ extern "C" sgx_status_t trts_handle_exception(void *tcs)
     ssa_gpr_t *ssa_gpr = NULL;
     sgx_exception_info_t *info = NULL;
     uintptr_t sp_u, sp, *new_sp = NULL;
+    uintptr_t first_ssa_base = 0, pkru_base = 0;
+    uint32_t *pkru_ptr = NULL;
     size_t size = 0;
     bool standard_exception = true;
 
@@ -507,6 +511,16 @@ extern "C" sgx_status_t trts_handle_exception(void *tcs)
     //mark valid to 0 to prevent eenter again
     ssa_gpr->exit_info.valid = 0;
 
+    if (!standard_exception && is_pkru_enabled())
+    {
+        // When handling non-standard exceptions, the PKRU saved in SSA XSAVE area can be PKRU_USER.
+        // We need to update PKRU to PKRU_LIBOS, ensuring LibOS has enough access rights at `internal_handle_exception()`.
+        first_ssa_base = (uintptr_t)tcs + SE_PAGE_SIZE; 
+        pkru_base = (uintptr_t)first_ssa_base + XSAVE_PKRU_OFFSET;
+        pkru_ptr = (uint32_t *)pkru_base;
+        *pkru_ptr = PKRU_LIBOS;
+    }
+
     return SGX_SUCCESS;
  
 default_handler:
@@ -540,6 +554,8 @@ extern "C" sgx_status_t trts_handle_interrupt(void *tcs)
     ssa_gpr_t *ssa_gpr = NULL;
     sgx_interrupt_info_t *info = NULL;
     uintptr_t sp, *new_sp = NULL;
+    uintptr_t first_ssa_base = 0, pkru_base = 0;
+    uint32_t *pkru_ptr = NULL;
     size_t size = 0;
 
     if ((thread_data == NULL) || (tcs == NULL)) goto default_handler;
@@ -645,6 +661,15 @@ extern "C" sgx_status_t trts_handle_interrupt(void *tcs)
     ssa_gpr->REG(ax) = (size_t)info;        // 1st parameter (info) for LINUX32
     ssa_gpr->REG(di) = (size_t)info;        // 1st parameter (info) for LINUX64, LINUX32 also uses it while restoring the context
     *new_sp = info->cpu_context.REG(ip);    // for debugger to get call trace
+
+    if (is_pkru_enabled())
+    {
+        // Update PKRU to PKRU_LIBOS, ensuring LibOS has enough access rights at `internal_handle_exception()`.
+        first_ssa_base = (uintptr_t)tcs + SE_PAGE_SIZE; 
+        pkru_base = (uintptr_t)first_ssa_base + XSAVE_PKRU_OFFSET;
+        pkru_ptr = (uint32_t *)pkru_base;
+        *pkru_ptr = PKRU_LIBOS;
+    }
 
     return SGX_SUCCESS;
 
