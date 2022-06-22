@@ -468,10 +468,12 @@ static void __attribute__((constructor)) vdso_detector(void)
 #ifdef SE_SIM
     vdso_sgx_enter_enclave = NULL;
 #else  
-    if(vdso_sgx_enter_enclave == NULL)
-    {
-        vdso_sgx_enter_enclave = (vdso_sgx_enter_enclave_t)get_vdso_sym("__vdso_sgx_enter_enclave");
-    }
+    // TODO: We disable vdso support in Occlum's SGX SDK temporarily
+    vdso_sgx_enter_enclave = NULL;
+    // if(vdso_sgx_enter_enclave == NULL)
+    // {
+    //     vdso_sgx_enter_enclave = (vdso_sgx_enter_enclave_t)get_vdso_sym("__vdso_sgx_enter_enclave");
+    // }
 #endif
 }
 
