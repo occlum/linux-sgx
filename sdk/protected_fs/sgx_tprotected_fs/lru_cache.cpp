@@ -61,7 +61,7 @@ lru_cache::~lru_cache()
 }
 
 
-void lru_cache::rehash(uint32_t size_)
+void lru_cache::rehash(uint64_t size_)
 {
 	map.rehash(size_);
 }
@@ -272,4 +272,3 @@ void lru_cache::remove_last()
 	map.erase(key);
 	delete map_node;
 }
-

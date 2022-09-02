@@ -52,12 +52,15 @@ typedef enum
 	SGX_FILE_STATUS_CRYPTO_ERROR,
 	SGX_FILE_STATUS_CORRUPTED,
 	SGX_FILE_STATUS_MEMORY_CORRUPTED,
-	//SGX_FILE_STATUS_WRITE_TO_DISK_FAILED_NEED_MC,
-	//SGX_FILE_STATUS_MC_NOT_INCREMENTED,
 	SGX_FILE_STATUS_CLOSED,
 } protected_fs_status_e;
 
+#ifndef SE_PAGE_SIZE
+#define SE_PAGE_SIZE 0x1000
+#endif
+
 #define MAX_PAGES_IN_CACHE 48
+#define DEFAULT_CACHE_SIZE	(MAX_PAGES_IN_CACHE * SE_PAGE_SIZE)
 
 COMPILE_TIME_ASSERT(filename_length, FILENAME_MAX_LEN == FILENAME_MAX);
 
@@ -152,6 +155,7 @@ private:
 	uint8_t read_only;
 	int64_t offset; // current file position (user's view)
 	bool end_of_file; // flag
+	uint64_t max_cache_page;
 
 	int64_t real_file_size;
 	bool integrity_only; // If true, no encryption, only MAC. Default: false.
@@ -176,7 +180,7 @@ private:
 	sgx_iv_t empty_iv;
 	sgx_report_t report;
 
-	void init_fields();
+	void init_fields(const uint64_t cache_page);
 	bool cleanup_filename(const char* src, char* dest);
 	bool parse_mode(const char* mode);
 	bool file_recovery(const char* filename);
@@ -204,10 +208,10 @@ private:
 	bool update_meta_data_node();
 	bool write_all_changes_to_disk(bool flush_to_disk);
 	void erase_recovery_file();
-	bool internal_flush(/*bool mc,*/ bool flush_to_disk);
+	bool internal_flush(bool flush_to_disk);
 
 public:
-	protected_fs_file(const char* filename, const char* mode, const sgx_aes_gcm_128bit_key_t* import_key, const sgx_aes_gcm_128bit_key_t* kdk_key, bool integrity_only);
+	protected_fs_file(const char* filename, const char* mode, const sgx_aes_gcm_128bit_key_t* import_key, const sgx_aes_gcm_128bit_key_t* kdk_key, bool integrity_only, const uint64_t cache_page);
 	~protected_fs_file();
 
 	size_t write(const void* ptr, size_t size, size_t count);
@@ -218,7 +222,7 @@ public:
 	uint32_t get_error();
 	void clear_error();
 	int32_t clear_cache();
-	bool flush(/*bool mc*/);
+	bool flush();
 	bool pre_close(sgx_key_128bit_t* key, bool import);
 	int32_t get_root_mac(sgx_aes_gcm_128bit_tag_t* root_mac);
 	static int32_t remove(const char* filename);

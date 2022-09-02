@@ -154,4 +154,3 @@ typedef struct _recovery_node
 #pragma pack(pop)
 
 #endif // _PROTECTED_FS_NODES_H_
-

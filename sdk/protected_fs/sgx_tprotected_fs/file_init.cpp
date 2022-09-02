@@ -67,13 +67,13 @@ bool protected_fs_file::cleanup_filename(const char* src, char* dest)
 }
 
 
-protected_fs_file::protected_fs_file(const char* filename, const char* mode, const sgx_aes_gcm_128bit_key_t* import_key, const sgx_aes_gcm_128bit_key_t* kdk_key, bool _integrity_only)
+protected_fs_file::protected_fs_file(const char* filename, const char* mode, const sgx_aes_gcm_128bit_key_t* import_key, const sgx_aes_gcm_128bit_key_t* kdk_key, bool _integrity_only, const uint64_t cache_page)
 {
 	sgx_status_t status = SGX_SUCCESS;
 	uint8_t result = 0;
 	int32_t result32 = 0;
 
-	init_fields();
+	init_fields(cache_page);
 
 	if (filename == NULL || mode == NULL ||
 		strnlen(filename, 1) == 0 || strnlen(mode, 1) == 0)
@@ -249,7 +249,7 @@ protected_fs_file::protected_fs_file(const char* filename, const char* mode, con
 }
 
 
-void protected_fs_file::init_fields()
+void protected_fs_file::init_fields(const uint64_t cache_page)
 {
 	meta_data_node_number = 0;
 	memset(&file_meta_data, 0, sizeof(meta_data_node_t));
@@ -277,13 +277,16 @@ void protected_fs_file::init_fields()
 	open_mode.raw = 0;
 	use_user_kdk_key = 0;
 	master_key_count = 0;
+	max_cache_page = 0;
 
 	recovery_filename[0] = '\0';
 
-	memset(&mutex, 0, sizeof(sgx_thread_mutex_t));
+	max_cache_page = cache_page;
 
-	// set hash size to fit MAX_PAGES_IN_CACHE
-	cache.rehash(MAX_PAGES_IN_CACHE);
+	// set hash size
+	cache.rehash(max_cache_page);
+
+	memset(&mutex, 0, sizeof(sgx_thread_mutex_t));
 }
 
 
@@ -480,51 +483,6 @@ bool protected_fs_file::init_existing_file(const char* filename, const char* cle
 		return false;
 	}
 
-/*
-	sgx_mc_uuid_t empty_mc_uuid = {0};
-
-	// check if the file contains an active monotonic counter
-	if (consttime_memequal(&empty_mc_uuid, &encrypted_part_plain.mc_uuid, sizeof(sgx_mc_uuid_t)) == 0)
-	{
-		uint32_t mc_value = 0;
-
-		status = sgx_read_monotonic_counter(&encrypted_part_plain.mc_uuid, &mc_value);
-		if (status != SGX_SUCCESS)
-		{
-			last_error = status;
-			return false;
-		}
-
-		if (encrypted_part_plain.mc_value < mc_value)
-		{
-			last_error = SGX_ERROR_FILE_MONOTONIC_COUNTER_IS_BIGGER;
-			return false;
-		}
-
-		if (encrypted_part_plain.mc_value == mc_value + 1) // can happen if AESM failed - file value stayed one higher
-		{
-			sgx_status_t status = sgx_increment_monotonic_counter(&encrypted_part_plain.mc_uuid, &mc_value);
-			if (status != SGX_SUCCESS)
-			{
-				file_status = SGX_FILE_STATUS_MC_NOT_INCREMENTED;
-				last_error = status;
-				return false;
-			}
-		}
-
-		if (encrypted_part_plain.mc_value != mc_value)
-		{
-			file_status = SGX_FILE_STATUS_CORRUPTED;
-			last_error = SGX_ERROR_UNEXPECTED;
-			return false;
-		}
-	}
-	else
-	{
-		assert(encrypted_part_plain.mc_value == 0);
-		encrypted_part_plain.mc_value = 0; // do this anyway for release...
-	}
-*/
 	if (encrypted_part_plain.size > MD_USER_DATA_SIZE)
 	{
 		// read the root node of the mht
@@ -679,4 +637,3 @@ bool protected_fs_file::pre_close(sgx_key_128bit_t* key, bool import)
 
 	return retval;
 }
-
