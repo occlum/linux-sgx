@@ -83,7 +83,7 @@ public:
 	lru_cache();
 	~lru_cache();
 
-	void rehash(uint32_t size_);
+	void rehash(uint64_t size_);
 
 	bool add(uint64_t key, void* p);
 	void* get(uint64_t key);
