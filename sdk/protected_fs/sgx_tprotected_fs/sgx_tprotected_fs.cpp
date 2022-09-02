@@ -80,14 +80,13 @@ SGX_FILE* sgx_fopen_auto_key(const char* filename, const char* mode)
 SGX_FILE* sgx_fopen_integrity_only(const char* filename, const char* mode)
 {
 	sgx_key_128bit_t empty_key = {0};
-	return sgx_fopen_internal(filename, mode, NULL, &empty_key, true);
+	return sgx_fopen_internal(filename, mode, NULL, &empty_key, true, DEFAULT_CACHE_SIZE);
 }
 
 SGX_FILE* sgx_fopen(const char* filename, const char* mode, const sgx_key_128bit_t *key)
 {
 	return sgx_fopen_internal(filename, mode, NULL, key, false, DEFAULT_CACHE_SIZE);
 }
-
 
 SGX_FILE* SGXAPI sgx_fopen_ex(const char* filename, const char* mode, const sgx_key_128bit_t *key, const uint64_t cache_size)
 {
