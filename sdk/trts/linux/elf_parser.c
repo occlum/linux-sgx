@@ -601,7 +601,7 @@ int get_first_executable_segment_info(const void *enclave_base,
 
     for (; phnum < ehdr->e_phnum; phnum++, phdr++)
     {
-        if (phdr->p_type == PT_LOAD && phdr->p_flags | PF_X)
+        if (phdr->p_type == PT_LOAD && phdr->p_flags & PF_X)
         {
             *segment_start_addr = (size_t)enclave_base + phdr->p_vaddr;
             *segment_size = phdr->p_memsz;
