@@ -66,13 +66,14 @@ bool protected_fs_file::cleanup_filename(const char* src, char* dest)
 	return true;
 }
 
-protected_fs_file::protected_fs_file(const char* filename, const char* mode, const sgx_aes_gcm_128bit_key_t* import_key, const sgx_aes_gcm_128bit_key_t* kdk_key, bool _integrity_only, const uint32_t cache_page)
+
+protected_fs_file::protected_fs_file(const char* filename, const char* mode, const sgx_aes_gcm_128bit_key_t* import_key, const sgx_aes_gcm_128bit_key_t* kdk_key, const uint16_t key_policy, const uint8_t open_operate_mode, const uint8_t file_encrypt_flags, const uint32_t cache_page)
 {
 	sgx_status_t status = SGX_SUCCESS;
 	uint8_t result = 0;
 	int32_t result32 = 0;
-	
-	init_fields(cache_page);
+
+	init_fields(open_operate_mode, file_encrypt_flags, cache_page);
 
 	if (filename == NULL || mode == NULL ||
 		strnlen(filename, 1) == 0 || strnlen(mode, 1) == 0)
@@ -87,8 +88,13 @@ protected_fs_file::protected_fs_file(const char* filename, const char* mode, con
 		return;
 	}
 
-	if (import_key != NULL && kdk_key != NULL)
+	if (import_key != NULL && ((kdk_key != NULL) || (file_encrypt_flags != USE_AUTO_KEY)))
 	{// import key is used only with auto generated keys
+		last_error = EINVAL;
+		return;
+	}
+	if (kdk_key != NULL && file_encrypt_flags != USE_USER_KDK_KEY)
+	{
 		last_error = EINVAL;
 		return;
 	}
@@ -115,7 +121,6 @@ protected_fs_file::protected_fs_file(const char* filename, const char* mode, con
 	{
 		// for new file, this value will later be saved in the meta data plain part (init_new_file)
 		// for existing file, we will later compare this value with the value from the file (init_existing_file)
-		use_user_kdk_key = 1;
 		memcpy(user_kdk_key, kdk_key, sizeof(sgx_aes_gcm_128bit_key_t));
 	}
 
@@ -182,8 +187,6 @@ protected_fs_file::protected_fs_file(const char* filename, const char* mode, con
 		return;
 	}
 
-	integrity_only = _integrity_only;
-
 	// now open the file
 	read_only = (open_mode.read == 1 && open_mode.update == 0); // read only files can be opened simultaneously by many enclaves
 
@@ -221,7 +224,7 @@ protected_fs_file::protected_fs_file(const char* filename, const char* mode, con
 				break;
 			}
 
-			if (init_existing_file(filename, clean_filename, import_key) == false)
+			if (init_existing_file(filename, clean_filename, import_key, key_policy) == false)
 				break;
 
 			if (open_mode.append == 1 && open_mode.update == 0)
@@ -229,7 +232,7 @@ protected_fs_file::protected_fs_file(const char* filename, const char* mode, con
 		}
 		else
 		{// new file
-			if (init_new_file(clean_filename) == false)
+			if (init_new_file(clean_filename, key_policy) == false)
 				break;
 		}
 
@@ -248,7 +251,7 @@ protected_fs_file::protected_fs_file(const char* filename, const char* mode, con
 }
 
 
-void protected_fs_file::init_fields(const uint32_t cache_page)
+void protected_fs_file::init_fields(const uint8_t open_operate_mode, const uint8_t file_encrypt_flags, const uint32_t cache_page)
 {
 	meta_data_node_number = 0;
 	memset(&file_meta_data, 0, sizeof(meta_data_node_t));
@@ -267,15 +270,15 @@ void protected_fs_file::init_fields(const uint32_t cache_page)
 	offset = 0;
 	file = NULL;
 	end_of_file = false;
-	integrity_only = false;
 	need_writing = false;
 	read_only = 0;
 	file_status = SGX_FILE_STATUS_NOT_INITIALIZED;
 	last_error = SGX_SUCCESS;
 	real_file_size = 0;
 	open_mode.raw = 0;
-	use_user_kdk_key = 0;
 	master_key_count = 0;
+	operate_mode = open_operate_mode;
+	encrypt_flags = file_encrypt_flags;
 
 	recovery_filename[0] = '\0';
 
@@ -391,7 +394,7 @@ bool protected_fs_file::file_recovery(const char* filename)
 }
 
 
-bool protected_fs_file::init_existing_file(const char* filename, const char* clean_filename, const sgx_aes_gcm_128bit_key_t* import_key)
+bool protected_fs_file::init_existing_file(const char* filename, const char* clean_filename, const sgx_aes_gcm_128bit_key_t* import_key, const uint16_t key_policy)
 {
 	sgx_status_t status;
 	int32_t result32;
@@ -439,22 +442,27 @@ bool protected_fs_file::init_existing_file(const char* filename, const char* cle
 		}
 	}
 
-	if (file_meta_data.plain_part.use_user_kdk_key != use_user_kdk_key)
+	if (file_meta_data.plain_part.encrypt_flags != encrypt_flags)
 	{
 		last_error = EINVAL;
 		return false;
 	}
 
-	if (file_meta_data.plain_part.integrity_only != integrity_only)
+	if ((encrypt_flags == USE_AUTO_KEY) && (operate_mode == OPEN_FILE))
 	{
-		last_error = EINVAL;
-		return false;
+		if (file_meta_data.plain_part.key_policy != key_policy) {
+			last_error = EINVAL;
+			return false;
+		}
 	}
 
 	if (restore_current_meta_data_key(import_key) == false)
 		return false;
 
-	if(!integrity_only) {
+	if (operate_mode == IMPORT_KEY)
+		file_meta_data.plain_part.key_policy = key_policy;
+
+	if(!is_integrity_only()) {
 		// decrypt the encrypted part of the meta-data
 		status = sgx_rijndael128GCM_decrypt(&cur_key,
 											(const uint8_t*)file_meta_data.encrypted_part, sizeof(meta_data_encrypted_blob_t), (uint8_t*)&encrypted_part_plain,
@@ -493,7 +501,7 @@ bool protected_fs_file::init_existing_file(const char* filename, const char* cle
 			return false;
 		}
 
-		if(!integrity_only){
+		if(!is_integrity_only()){
 			// this also verifies the root mht gmac against the gmac in the meta-data encrypted part
 			status = sgx_rijndael128GCM_decrypt(&encrypted_part_plain.mht_key,
 											    root_mht.encrypted.cipher, NODE_SIZE, (uint8_t*)&root_mht.plain,
@@ -519,14 +527,14 @@ bool protected_fs_file::init_existing_file(const char* filename, const char* cle
 }
 
 
-bool protected_fs_file::init_new_file(const char* clean_filename)
+bool protected_fs_file::init_new_file(const char* clean_filename, const uint16_t key_policy)
 {
 	file_meta_data.plain_part.file_id = SGX_FILE_ID;
 	file_meta_data.plain_part.major_version = SGX_FILE_MAJOR_VERSION;
 	file_meta_data.plain_part.minor_version = SGX_FILE_MINOR_VERSION;
 
-	file_meta_data.plain_part.use_user_kdk_key = use_user_kdk_key;
-	file_meta_data.plain_part.integrity_only = integrity_only;
+	file_meta_data.plain_part.encrypt_flags = encrypt_flags;
+	file_meta_data.plain_part.key_policy = key_policy;
 
 	strncpy(encrypted_part_plain.clean_filename, clean_filename, FILENAME_MAX_LEN);
 
@@ -578,7 +586,7 @@ bool protected_fs_file::pre_close(sgx_key_128bit_t* key, bool import)
 
 	if (import == true)
 	{
-		if (use_user_kdk_key == 1) // import file is only needed for auto-key
+		if ((encrypt_flags != USE_AUTO_KEY) || (operate_mode != IMPORT_KEY)) // import file is only needed for auto-key
 			retval = false;
 		else
 			need_writing = true; // will re-encrypt the neta-data node with local key
@@ -617,7 +625,7 @@ bool protected_fs_file::pre_close(sgx_key_128bit_t* key, bool import)
 
 	if (key != NULL)
 	{
-		if (use_user_kdk_key == 1) // export key is only used for auto-key
+		if ((encrypt_flags != USE_AUTO_KEY) || (operate_mode != EXPORT_KEY)) // export key is only used for auto-key
 		{
 			retval = false;
 		}

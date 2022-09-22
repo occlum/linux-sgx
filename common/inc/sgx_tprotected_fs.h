@@ -122,6 +122,7 @@ SGX_FILE* SGXAPI sgx_fopen_integrity_only(const char* filename, const char* mode
  *            If it's NULL, we will swtich back to `sgx_fopen_auto_key and use enclave's seal key to protect the file
  *      NOTE - the key is actually used as a KDK (key derivation key) and only for the meta-data node, and not used directly for the encryption of any part of the file
  *             this is important in order to prevent hitting the key wear-out problem, and some other issues with GCM encryptions using the same key
+ *      key_policy - [IN] Specifies the measurement to use in enclave's SEAL key derivation.
  *      cache_size - [IN] Internal cache size in byte, which used to cache R/W data in enclave before flush to actual file
  *                   It must larger than default cache size (192KB), and must be page (4KB by default) aligned
  *                   a) Please make sure enclave heap is enough for the `cache`, e.g. Configure enough heap in enclave config file
@@ -130,7 +131,7 @@ SGX_FILE* SGXAPI sgx_fopen_integrity_only(const char* filename, const char* mode
  *  Return value:
  *     SGX_FILE*  - pointer to the newly created file handle, NULL if an error occurred - check errno for the error code.
 */
-SGX_FILE* SGXAPI sgx_fopen_ex(const char* filename, const char* mode, const sgx_key_128bit_t *key, const uint64_t cache_size);
+SGX_FILE* SGXAPI sgx_fopen_ex(const char* filename, const char* mode, const sgx_key_128bit_t *key, const uint16_t key_policy, const uint64_t cache_size);
 
 
 /* sgx_fwrite
@@ -287,11 +288,12 @@ int32_t SGXAPI sgx_fexport_auto_key(const char* filename, sgx_key_128bit_t *key)
 *  Parameters:
 *      filename - [IN] the name of the file to be imported.
 *      key - [IN] the encryption key, exported with a call to sgx_fexport_auto_key in the source enclave/system
+*      key_policy - [IN] Specifies the measurement to use in enclave's SEAL key derivation.
 *
 *  Return value:
 *     int32_t  - result, 0 - success, 1 - there was an error, check errno for the error code
 */
-int32_t SGXAPI sgx_fimport_auto_key(const char* filename, const sgx_key_128bit_t *key);
+int32_t SGXAPI sgx_fimport_auto_key(const char* filename, const sgx_key_128bit_t *key, const uint16_t key_policy);
 
 
 /* sgx_fclear_cache
