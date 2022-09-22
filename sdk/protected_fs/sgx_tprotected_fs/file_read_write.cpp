@@ -493,7 +493,7 @@ file_data_node_t* protected_fs_file::read_data_node()
 
 	gcm_crypto_data_t* gcm_crypto_data = &file_data_node->parent->plain.data_nodes_crypto[file_data_node->data_node_number % ATTACHED_DATA_NODES_COUNT];
 
-	if(!integrity_only) {
+	if(!is_integrity_only()) {
 		// this function decrypt the data _and_ checks the integrity of the data against the gmac
 		status = sgx_rijndael128GCM_decrypt(&gcm_crypto_data->key,
 											file_data_node->encrypted.cipher,
@@ -643,7 +643,7 @@ file_mht_node_t* protected_fs_file::read_mht_node(uint64_t mht_node_number)
 
 	gcm_crypto_data_t* gcm_crypto_data = &file_mht_node->parent->plain.mht_nodes_crypto[(file_mht_node->mht_node_number - 1) % CHILD_MHT_NODES_COUNT];
 
-	if(!integrity_only){
+	if(!is_integrity_only()){
 		// this function decrypt the data _and_ checks the integrity of the data against the gmac
 		status = sgx_rijndael128GCM_decrypt(&gcm_crypto_data->key,
 											file_mht_node->encrypted.cipher,
