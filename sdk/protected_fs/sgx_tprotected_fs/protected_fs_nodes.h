@@ -53,22 +53,25 @@ typedef uint8_t sgx_iv_t[SGX_AESGCM_IV_SIZE];
 #define SGX_FILE_MAJOR_VERSION 0x01
 #define SGX_FILE_MINOR_VERSION 0x00
 
+#define USE_AUTO_KEY           0x00
+#define USE_USER_KDK_KEY       0x01
+#define USE_INTEGRITY_ONLY     0x02
+
 typedef struct _meta_data_plain
 {
 	uint64_t         file_id;
 	uint8_t          major_version;
 	uint8_t          minor_version;
 
+	uint8_t          encrypt_flags;
+	uint8_t          update_flag;
+	uint16_t         key_policy;
+	sgx_isv_svn_t    isv_svn;
 	sgx_key_id_t     meta_data_key_id;
 	sgx_cpu_svn_t    cpu_svn;
-	sgx_isv_svn_t    isv_svn;
-	uint8_t          use_user_kdk_key;
 	sgx_attributes_t attribute_mask;
 
 	sgx_aes_gcm_128bit_tag_t meta_data_gmac;
-
-	uint8_t          update_flag;
-	uint8_t          integrity_only;
 } meta_data_plain_t;
 
 // these are all defined as relative to node size, so we can decrease node size in tests and have deeper tree

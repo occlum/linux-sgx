@@ -35,7 +35,7 @@
 
 #include <errno.h>
 
-static SGX_FILE* sgx_fopen_internal(const char* filename, const char* mode, const sgx_key_128bit_t *auto_key, const sgx_key_128bit_t *kdk_key, bool integrity_only, const uint64_t cache_size)
+static SGX_FILE* sgx_fopen_internal(const char* filename, const char* mode, const sgx_key_128bit_t *auto_key, const sgx_key_128bit_t *kdk_key, const uint16_t key_policy, const uint8_t operate_mode, const uint8_t encrypt_flags, const uint64_t cache_size)
 {
 	protected_fs_file* file = NULL;
 	uint64_t cache_page = 0;
@@ -47,10 +47,20 @@ static SGX_FILE* sgx_fopen_internal(const char* filename, const char* mode, cons
 		return NULL;
 	}
 
+	if ((encrypt_flags == USE_AUTO_KEY) && (operate_mode == OPEN_FILE || operate_mode == IMPORT_KEY))
+	{
+		if ((key_policy & ~(SGX_KEYPOLICY_MRENCLAVE | SGX_KEYPOLICY_MRSIGNER | SGX_KEYPOLICY_CONFIGID | SGX_KEYPOLICY_ISVFAMILYID | SGX_KEYPOLICY_ISVEXTPRODID | SGX_KEYPOLICY_NOISVPRODID)) ||
+			(key_policy & (SGX_KEYPOLICY_MRENCLAVE | SGX_KEYPOLICY_MRSIGNER)) == 0)
+		{
+			errno = EINVAL;
+			return NULL;
+		}
+	}
+
 	cache_page = cache_size / SE_PAGE_SIZE;
 
 	try {
-		file = new protected_fs_file(filename, mode, auto_key, kdk_key, integrity_only, cache_page);
+		file = new protected_fs_file(filename, mode, auto_key, kdk_key, key_policy, operate_mode, encrypt_flags, cache_page);
 	}
 	catch (std::bad_alloc& e) {
 		(void)e; // remove warning
@@ -71,23 +81,35 @@ static SGX_FILE* sgx_fopen_internal(const char* filename, const char* mode, cons
 
 SGX_FILE* sgx_fopen_auto_key(const char* filename, const char* mode)
 {
-	return sgx_fopen_internal(filename, mode, NULL, NULL, false, DEFAULT_CACHE_SIZE);
+	return sgx_fopen_internal(filename, mode, NULL, NULL, SGX_KEYPOLICY_MRSIGNER, OPEN_FILE, USE_AUTO_KEY, DEFAULT_CACHE_SIZE);
 }
 
 SGX_FILE* sgx_fopen_integrity_only(const char* filename, const char* mode)
 {
-	sgx_key_128bit_t empty_key = {0};
-	return sgx_fopen_internal(filename, mode, NULL, &empty_key, true, DEFAULT_CACHE_SIZE);
+	return sgx_fopen_internal(filename, mode, NULL, NULL, 0, OPEN_FILE, USE_INTEGRITY_ONLY, DEFAULT_CACHE_SIZE);
 }
 
 SGX_FILE* sgx_fopen(const char* filename, const char* mode, const sgx_key_128bit_t *key)
 {
-	return sgx_fopen_internal(filename, mode, NULL, key, false, DEFAULT_CACHE_SIZE);
+	return sgx_fopen_internal(filename, mode, NULL, key, 0, OPEN_FILE, USE_USER_KDK_KEY, DEFAULT_CACHE_SIZE);
 }
 
-SGX_FILE* SGXAPI sgx_fopen_ex(const char* filename, const char* mode, const sgx_key_128bit_t *key, const uint64_t cache_size)
+SGX_FILE* SGXAPI sgx_fopen_ex(const char* filename, const char* mode, const sgx_key_128bit_t *key, const uint16_t key_policy, const uint64_t cache_size)
 {
-	return sgx_fopen_internal(filename, mode, NULL, key, false, cache_size);
+	uint16_t auto_key_policy = 0;
+	uint8_t encrypt_flags = key ? USE_USER_KDK_KEY: USE_AUTO_KEY;
+	uint64_t file_cache_size = cache_size ? cache_size : DEFAULT_CACHE_SIZE;
+
+	if (encrypt_flags == USE_USER_KDK_KEY && key_policy != 0)
+	{
+		errno = EINVAL;
+		return NULL;
+	}
+	if (encrypt_flags == USE_AUTO_KEY)
+	{
+		auto_key_policy = key_policy ? key_policy : SGX_KEYPOLICY_MRSIGNER;
+	}
+	return sgx_fopen_internal(filename, mode, NULL, key, auto_key_policy, OPEN_FILE, encrypt_flags, file_cache_size);
 }
 
 
@@ -211,7 +233,7 @@ int32_t sgx_remove(const char* filename)
 
 int32_t sgx_fexport_auto_key(const char* filename, sgx_key_128bit_t *key)
 {
-	SGX_FILE* stream = sgx_fopen_internal(filename, "r", NULL, NULL, false, DEFAULT_CACHE_SIZE);
+	SGX_FILE* stream = sgx_fopen_internal(filename, "r", NULL, NULL, 0, EXPORT_KEY, USE_AUTO_KEY, DEFAULT_CACHE_SIZE);
 	if (stream == NULL)
 		return 1;
 
@@ -219,9 +241,10 @@ int32_t sgx_fexport_auto_key(const char* filename, sgx_key_128bit_t *key)
 }
 
 
-int32_t sgx_fimport_auto_key(const char* filename, const sgx_key_128bit_t *key)
+int32_t sgx_fimport_auto_key(const char* filename, const sgx_key_128bit_t *key, const uint16_t key_policy)
 {
-	SGX_FILE* stream = sgx_fopen_internal(filename, "r+", key, NULL, false, DEFAULT_CACHE_SIZE);
+	uint16_t auto_key_policy = key_policy ? key_policy : SGX_KEYPOLICY_MRSIGNER;
+	SGX_FILE* stream = sgx_fopen_internal(filename, "r+", key, NULL, auto_key_policy, IMPORT_KEY, USE_AUTO_KEY, DEFAULT_CACHE_SIZE);
 	if (stream == NULL)
 		return 1;
 

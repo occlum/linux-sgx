@@ -280,7 +280,7 @@ bool protected_fs_file::update_all_data_and_mht_nodes()
 				gcm_crypto_data_t* gcm_crypto_data = &data_node->parent->plain.data_nodes_crypto[data_node->data_node_number % ATTACHED_DATA_NODES_COUNT];
 
 				// encrypt the data, this also saves the gmac of the operation in the mht crypto node
-				if(!integrity_only) {
+				if(!is_integrity_only()) {
 						status = sgx_rijndael128GCM_encrypt(&cur_key, data_node->plain.data, NODE_SIZE, data_node->encrypted.cipher,
 															empty_iv, SGX_AESGCM_IV_SIZE, NULL, 0, &gcm_crypto_data->gmac);
 				}
@@ -341,7 +341,7 @@ bool protected_fs_file::update_all_data_and_mht_nodes()
 			mht_list.clear();
 			return false;
 		}
-		if(!integrity_only) {
+		if(!is_integrity_only()) {
 			status = sgx_rijndael128GCM_encrypt(&cur_key, (const uint8_t*)&file_mht_node->plain, NODE_SIZE, file_mht_node->encrypted.cipher,
 												empty_iv, SGX_AESGCM_IV_SIZE, NULL, 0, &gcm_crypto_data->gmac);
 		}
@@ -366,7 +366,7 @@ bool protected_fs_file::update_all_data_and_mht_nodes()
 	if (derive_random_node_key(root_mht.physical_node_number) == false)
 		return false;
 
-	if(!integrity_only) {
+	if(!is_integrity_only()) {
 		status = sgx_rijndael128GCM_encrypt(&cur_key, (const uint8_t*)&root_mht.plain, NODE_SIZE, root_mht.encrypted.cipher,
 											empty_iv, SGX_AESGCM_IV_SIZE, NULL, 0, &encrypted_part_plain.mht_gmac);
 	}
@@ -398,7 +398,7 @@ bool protected_fs_file::update_meta_data_node()
 		return false;
 	}
 
-	if (!integrity_only) {
+	if (!is_integrity_only()) {
 		// encrypt meta data encrypted part, also updates the gmac in the meta data plain part
 		status = sgx_rijndael128GCM_encrypt(&cur_key,
 					(const uint8_t*)&encrypted_part_plain, sizeof(meta_data_encrypted_t), (uint8_t*)&file_meta_data.encrypted_part,

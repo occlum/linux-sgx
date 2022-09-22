@@ -56,11 +56,6 @@ typedef struct {
 
 bool protected_fs_file::generate_secure_blob(sgx_aes_gcm_128bit_key_t* key, const char* label, uint64_t physical_node_number, sgx_aes_gcm_128bit_tag_t* output)
 {
-	if (integrity_only)
-	{
-		return true;
-	}
-
 	kdf_input_t buf = {0, "", 0, "", 0};
 
 	uint32_t len = (uint32_t)strnlen(label, MAX_LABEL_LEN + 1);
@@ -113,11 +108,6 @@ bool protected_fs_file::generate_secure_blob(sgx_aes_gcm_128bit_key_t* key, cons
 
 bool protected_fs_file::generate_secure_blob_from_user_kdk(bool restore)
 {
-	if (integrity_only)
-	{
-		return true;
-	}
-
 	kdf_input_t buf = {0, "", 0, "", 0};
 	sgx_status_t status = SGX_SUCCESS;
 
@@ -178,7 +168,7 @@ bool protected_fs_file::generate_secure_blob_from_user_kdk(bool restore)
 
 bool protected_fs_file::init_session_master_key()
 {
-	if (integrity_only)
+	if (is_integrity_only())
 	{
 		return true;
 	}
@@ -196,7 +186,7 @@ bool protected_fs_file::init_session_master_key()
 
 bool protected_fs_file::derive_random_node_key(uint64_t physical_node_number)
 {
-	if (integrity_only)
+	if (is_integrity_only())
 	{
 		return true;
 	}
@@ -216,12 +206,11 @@ bool protected_fs_file::derive_random_node_key(uint64_t physical_node_number)
 
 bool protected_fs_file::generate_random_meta_data_key()
 {
-	if (integrity_only)
+	if (is_integrity_only())
 	{
 		return true;
 	}
-
-	if (use_user_kdk_key == 1)
+	else if (is_use_user_key())
 	{
 		return generate_secure_blob_from_user_kdk(false);
 	}
@@ -231,7 +220,7 @@ bool protected_fs_file::generate_random_meta_data_key()
 	memset(&key_request, 0, sizeof(sgx_key_request_t));
 
 	key_request.key_name = SGX_KEYSELECT_SEAL;
-	key_request.key_policy = SGX_KEYPOLICY_MRSIGNER;
+	key_request.key_policy = (file_meta_data.plain_part.key_policy == 0) ? SGX_KEYPOLICY_MRSIGNER : file_meta_data.plain_part.key_policy;
 
 	memcpy(&key_request.cpu_svn, &report.body.cpu_svn, sizeof(sgx_cpu_svn_t));
 	memcpy(&key_request.isv_svn, &report.body.isv_svn, sizeof(sgx_isv_svn_t));
@@ -266,18 +255,16 @@ bool protected_fs_file::generate_random_meta_data_key()
 
 bool protected_fs_file::restore_current_meta_data_key(const sgx_aes_gcm_128bit_key_t* import_key)
 {
-	if (integrity_only)
-	{
-		return true;
-	}
-
 	if (import_key != NULL)
 	{
 		memcpy(&cur_key, import_key, sizeof(sgx_aes_gcm_128bit_key_t));
 		return true;
 	}
-
-	if (use_user_kdk_key == 1)
+	else if (is_integrity_only())
+	{
+		return true;
+	}
+	else if (is_use_user_key())
 	{
 		return generate_secure_blob_from_user_kdk(true);
 	}
@@ -293,7 +280,7 @@ bool protected_fs_file::restore_current_meta_data_key(const sgx_aes_gcm_128bit_k
 	memset(&key_request, 0, sizeof(sgx_key_request_t));
 
 	key_request.key_name = SGX_KEYSELECT_SEAL;
-	key_request.key_policy = SGX_KEYPOLICY_MRSIGNER;
+	key_request.key_policy = (file_meta_data.plain_part.key_policy == 0) ? SGX_KEYPOLICY_MRSIGNER : file_meta_data.plain_part.key_policy;
 
 	key_request.attribute_mask.flags = TSEAL_DEFAULT_FLAGSMASK;
     key_request.attribute_mask.xfrm = 0x0;
@@ -312,4 +299,19 @@ bool protected_fs_file::restore_current_meta_data_key(const sgx_aes_gcm_128bit_k
 	}
 
 	return true;
+}
+
+bool protected_fs_file::is_use_auto_key()
+{
+	return (encrypt_flags == USE_AUTO_KEY);
+}
+
+bool protected_fs_file::is_use_user_key()
+{
+	return (encrypt_flags == USE_USER_KDK_KEY);
+}
+
+bool protected_fs_file::is_integrity_only()
+{
+	return (encrypt_flags == USE_INTEGRITY_ONLY);
 }
