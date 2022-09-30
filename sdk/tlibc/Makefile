@@ -53,6 +53,11 @@ CFLAGS += -D_TLIBC_USE_INTEL_FAST_STRING_
 CXXFLAGS += -D_TLIBC_USE_INTEL_FAST_STRING_
 endif
 
+ifneq ($(MITIGATION_CVE_2022_21233), 0)
+CFLAGS += -D_TLIBC_USE_MEMCPY_CHECKS_
+CXXFLAGS += -D_TLIBC_USE_MEMCPY_CHECKS_
+endif
+
 ifeq ($(USE_MATH_LIB), 0)
 C_SRCS := $(wildcard gen/*.c gdtoa/*.c locale/*.c math/opt/*.c stdlib/*.c string/*.c stdio/*.c time/*.c)
 LIBC_C_SRCS := $(filter-out $(wildcard gen/fpclassify*.c gen/isfinite*.c gen/isinf*.c gen/isnan*.c gen/isnormal*.c gen/signbit*.c), $(C_SRCS))
