@@ -184,7 +184,7 @@ copy_external_memory(void* dst, const void* src, size_t count, bool is_dst_exter
 }
 
 void *
-memcpy(void *dst0, const void *src0, size_t length)
+memcpy_checks(void *dst0, const void *src0, size_t length)
 {
     if(length == 0 || dst0 == src0)
     {
@@ -235,4 +235,14 @@ memcpy(void *dst0, const void *src0, size_t length)
     copy_external_memory(dst, src, length, is_dst_external);
 
     return dst0;
+}
+
+void *
+memcpy(void *dst0, const void *src0, size_t length)
+{
+#ifdef _TLIBC_USE_MEMCPY_CHECKS_
+    return memcpy_checks(dst0, src0, length);
+#else
+    return memcpy_nochecks(dst0, src0, length);
+#endif
 }
