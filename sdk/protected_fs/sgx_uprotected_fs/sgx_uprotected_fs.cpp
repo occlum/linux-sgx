@@ -248,12 +248,6 @@ int32_t u_sgxprotectedfs_fclose(void* f)
 	else
 		flock(fd, LOCK_UN);
 
-	if ((result = fsync(fd)) != 0)
-	{
-		DEBUG_PRINT("fsync returned %d\n", result);
-		return -1;
-	}
-
 	if ((result = fclose(file)) != 0)
 	{
 		if (errno != 0)
@@ -284,12 +278,6 @@ uint8_t u_sgxprotectedfs_fflush(void* f)
 	if ((result = fflush(file)) != 0)
 	{
 		DEBUG_PRINT("fflush returned %d\n", result);
-		return 1;
-	}
-
-	if ((result = fsync(fileno(file))) != 0)
-	{
-		DEBUG_PRINT("fsync returned %d\n", result);
 		return 1;
 	}
 
