@@ -59,7 +59,8 @@ int SGXAPI sgx_mm_alloc_ocall(size_t addr, size_t size, int page_type, int alloc
 #ifdef SE_SIM
     (void)addr;
     (void)size;
-    (void)flags;
+    (void)page_type;
+    (void)alloc_flags;
     return 0;
 #else
     int status = SGX_SUCCESS;

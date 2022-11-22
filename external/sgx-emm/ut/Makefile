@@ -39,7 +39,7 @@ CPPFLAGS += -I$(COMMON_DIR)/inc          \
 
 all: test_bit_array test_ema test_public test_emm
 
-test_bit_array: test_bit_array.c ../bit_array.c
+test_bit_array: test_bit_array.c ../emm_src/bit_array.c
 	@$(CC) $(CPPFLAGS) $^ -o $@
 
 test_ema: test_ema.c stub.c ../ema.c ../bit_array.c
