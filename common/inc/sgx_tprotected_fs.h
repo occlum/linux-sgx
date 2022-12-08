@@ -94,27 +94,7 @@ SGX_FILE* SGXAPI sgx_fopen(const char* filename, const char* mode, const sgx_key
 */
 SGX_FILE* SGXAPI sgx_fopen_auto_key(const char* filename, const char* mode);
 
-/* sgx_fopen_ex
- *  Purpose: Expert version of sgx_fopen/sgx_fopen_auto_key which is used if you want to control the internal `cache size`.
- *           The specified `cache size` must be page (4KB by default) aligned.
- *           Note that `sgx_fexport_auto_key` and `sgx_fimport_auto_key` don't support configuring `cache_size` right now
- *
- *  Parameters:
- *      filename - [IN] the name of the file to open/create.
- *      mode - [IN] open mode. only supports 'r' or 'w' or 'a' (one and only one of them must be present), and optionally 'b' and/or '+'.
- *      key - [IN] encryption key that will be used for the file encryption.
- *            If it's NULL, we will swtich back to `sgx_fopen_auto_key and use enclave's seal key to protect the file
- *      NOTE - the key is actually used as a KDK (key derivation key) and only for the meta-data node, and not used directly for the encryption of any part of the file
- *             this is important in order to prevent hitting the key wear-out problem, and some other issues with GCM encryptions using the same key
- *      cache_size - [IN] Internal cache size in byte, which used to cache R/W data in enclave before flush to actual file
- *                   It must larger than default cache size (192KB), and must be page (4KB by default) aligned
- *                   a) Please make sure enclave heap is enough for the `cache`, e.g. Configure enough heap in enclave config file
- *                   b) All the data in cache may lost after exeception, please try to call `sgx_fflush` explicitly to avoid data loss
- *
- *  Return value:
- *     SGX_FILE*  - pointer to the newly created file handle, NULL if an error occurred - check errno for the error code.
-*/
-SGX_FILE* SGXAPI sgx_fopen_ex(const char* filename, const char* mode, const sgx_key_128bit_t *key, const uint64_t cache_size);
+
 
 /* sgx_fopen_integrity_only
 *  Purpose: open existing protected file (created with previous call to sgx_fopen_integrity_only) or create a new one (see c++ fopen documentation for more details).
@@ -160,7 +140,7 @@ SGX_FILE* SGXAPI sgx_fopen_ex(const char* filename, const char* mode, const sgx_
  *      ptr - [IN] pointer to the input data buffer
  *      size - [IN] size of data block
  *      count - [IN] count of data blocks to write
- *      stream - [IN] the file handle (opened with sgx_fopen*)
+ *      stream - [IN] the file handle (opened with sgx_fopen or sgx_fopen_auto_key)
  *
  *  Return value:
  *     size_t  - number of 'size' blocks written to the file, 0 in case of an error - check sgx_ferror for error code
@@ -175,7 +155,7 @@ size_t SGXAPI sgx_fwrite(const void* ptr, size_t size, size_t count, SGX_FILE* s
  *      ptr - [OUT] pointer to the output data buffer
  *      size - [IN] size of data block
  *      count - [IN] count of data blocks to write
- *      stream - [IN] the file handle (opened with sgx_fopen*)
+ *      stream - [IN] the file handle (opened with sgx_fopen or sgx_fopen_auto_key)
  *
  *  Return value:
  *     size_t  - number of 'size' blocks read from the file, 0 in case of an error - check sgx_ferror for error code
@@ -187,7 +167,7 @@ size_t SGXAPI sgx_fread(void* ptr, size_t size, size_t count, SGX_FILE* stream);
  *  Purpose: get the current value of the position indicator of the file (see c++ ftell documentation for more details).
  *
  *  Parameters:
- *      stream - [IN] the file handle (opened with sgx_fopen*)
+ *      stream - [IN] the file handle (opened with sgx_fopen or sgx_fopen_auto_key)
  *
  *  Return value:
  *     int64_t  - the current value of the position indicator, -1 on error - check errno for the error code
@@ -199,7 +179,7 @@ int64_t SGXAPI sgx_ftell(SGX_FILE* stream);
  *  Purpose: set the current value of the position indicator of the file (see c++ fseek documentation for more details).
  *
  *  Parameters:
- *      stream - [IN] the file handle (opened with sgx_fopen*)
+ *      stream - [IN] the file handle (opened with sgx_fopen or sgx_fopen_auto_key)
  *      offset - [IN] the new required value, relative to the origin parameter
  *      origin - [IN] the origin from which to calculate the offset (SEEK_SET, SEEK_CUR or SEEK_END)
  *
@@ -213,7 +193,7 @@ int32_t SGXAPI sgx_fseek(SGX_FILE* stream, int64_t offset, int origin);
  *  Purpose: force actual write of all the cached data to the disk (see c++ fflush documentation for more details).
  *
  *  Parameters:
- *      stream - [IN] the file handle (opened with sgx_fopen*)
+ *      stream - [IN] the file handle (opened with sgx_fopen or sgx_fopen_auto_key)
  *
  *  Return value:
  *     int32_t  - result, 0 on success, 1 in case of an error - check sgx_ferror for error code
@@ -225,7 +205,7 @@ int32_t SGXAPI sgx_fflush(SGX_FILE* stream);
  *  Purpose: get the latest operation error code (see c++ ferror documentation for more details).
  *
  *  Parameters:
- *      stream - [IN] the file handle (opened with sgx_fopen*)
+ *      stream - [IN] the file handle (opened with sgx_fopen or sgx_fopen_auto_key)
  *
  *  Return value:
  *     int32_t  - the error code, 0 means no error, anything else is the latest operation error code
@@ -237,7 +217,7 @@ int32_t SGXAPI sgx_ferror(SGX_FILE* stream);
  *  Purpose: did the file's position indicator hit the end of the file in a previous read operation (see c++ feof documentation for more details).
  *
  *  Parameters:
- *      stream - [IN] the file handle (opened with sgx_fopen*)
+ *      stream - [IN] the file handle (opened with sgx_fopen or sgx_fopen_auto_key)
  *
  *  Return value:
  *     int32_t  - 1 - end of file was reached, 0 - end of file wasn't reached
@@ -250,7 +230,7 @@ int32_t SGXAPI sgx_feof(SGX_FILE* stream);
  *           call sgx_ferror or sgx_feof after a call to this function to learn if it was successful or not
  *
  *  Parameters:
- *      stream - [IN] the file handle (opened with sgx_fopen*)
+ *      stream - [IN] the file handle (opened with sgx_fopen or sgx_fopen_auto_key)
  *
  *  Return value:
  *      none
@@ -263,7 +243,7 @@ void SGXAPI sgx_clearerr(SGX_FILE* stream);
  *           after a call to this function, the handle is invalid even if an error is returned
  *
  *  Parameters:
- *      stream - [IN] the file handle (opened with sgx_fopen*)
+ *      stream - [IN] the file handle (opened with sgx_fopen or sgx_fopen_auto_key)
  *
  *  Return value:
  *     int32_t  - result, 0 - file was closed successfully, 1 - there were errors during the operation
@@ -320,7 +300,7 @@ int32_t SGXAPI sgx_fimport_auto_key(const char* filename, const sgx_key_128bit_t
 *                  if a user wishes to remove all secrets from memory, he should close the file handle with sgx_fclose
 *
 *  Parameters:
-*      stream - [IN] the file handle (opened with sgx_fopen*)
+*      stream - [IN] the file handle (opened with sgx_fopen or sgx_fopen_auto_key
 *
 *  Return value:
 *     int32_t  - result, 0 - success, 1 - there was an error, check errno for the error code

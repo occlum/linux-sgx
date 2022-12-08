@@ -62,6 +62,7 @@ static uintptr_t _EINIT(secs_t* secs, enclave_css_t* css, token_t* launch);
 static uintptr_t _ECREATE (page_info_t* pi);
 static uintptr_t _EADD (page_info_t* pi, void* epc_lin_addr);
 static uintptr_t _EREMOVE(const void* epc_lin_addr);
+extern "C" void* get_td_addr(void);
 extern "C" int arch_prctl(int code, unsigned long addr);
 extern "C" bool get_elrange_start_address(void* base_address, uint64_t &elrange_start_address);
 
@@ -131,7 +132,7 @@ void sig_handler_sim(int signum, siginfo_t *siginfo, void *priv)
 
     thread_data_t *thread_data = 0;
     arch_prctl(ARCH_GET_GS, (unsigned long)&thread_data);
-    if (thread_data != NULL && _dtv_u != 0 && (uintptr_t)thread_data != _dtv_u && (uintptr_t)thread_data == (uintptr_t)thread_data->self_addr)
+    if (thread_data != NULL && (uintptr_t)thread_data == (uintptr_t)thread_data->self_addr)
     {
         // first SSA can be used to get tcs, even cssa > 0.
         ssa_gpr_t *p_ssa_gpr = (ssa_gpr_t*)thread_data->first_ssa_gpr;
