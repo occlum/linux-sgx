@@ -276,7 +276,6 @@ void protected_fs_file::init_fields(const uint32_t cache_page)
 	open_mode.raw = 0;
 	use_user_kdk_key = 0;
 	master_key_count = 0;
-	max_cache_page = 0;
 
 	recovery_filename[0] = '\0';
 
