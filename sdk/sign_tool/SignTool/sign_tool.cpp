@@ -1097,8 +1097,8 @@ static bool generate_compatible_metadata(metadata_t *metadata, const xml_paramet
     bool append = (meta_sgx1_only ? false : true);
 
     if (meta_sgx2_only) {
-        se_trace(SE_TRACE_ERROR, "%s: Only requires SGX2 metadata\n", __FUNCTION__);
-        return true;
+        // se_trace(SE_TRACE_ERROR, "%s: Only requires SGX2 metadata\n", __FUNCTION__);
+        // return true;
     }
 
     metadata_t *metadata2 = (metadata_t *)malloc(metadata->size);
