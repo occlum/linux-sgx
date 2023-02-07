@@ -41,6 +41,8 @@ C_Files := $(EMM_DIR)/bit_array.c   \
            $(EMM_DIR)/emm_private.c \
            $(EMM_DIR)/sgx_mm.c
 
+CPPFLAGS += -mno-sse
+
 OBJS := $(C_Files:.c=.o)
 OBJS := $(sort $(OBJS))
 
