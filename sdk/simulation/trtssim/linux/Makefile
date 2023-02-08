@@ -67,11 +67,15 @@ TRTS1_OBJS  := init_enclave.o \
                trts_xsave.o   \
                init_optimized_lib.o \
                trts_add_trim.o \
-               trts_interrupt.o  \
-               trts_emm_sim.o
+               trts_interrupt.o
+            #    trts_emm_sim.o
 
 TRTS2_OBJS  := trts_nsp.o
-TRTS_OBJS := $(TRTS1_OBJS) $(TRTS2_OBJS)
+
+TRTS3_OBJS := ema_rt.o
+
+TRTS_OBJS := $(TRTS1_OBJS) $(TRTS2_OBJS) $(TRTS3_OBJS)
+
 
 TINST_OBJS   := t_instructions.o \
                 deriv.o
@@ -94,6 +98,9 @@ TLDR_OBJS := $(TLDR_ASM_OBJS) $(TLDR_C_OBJS)
 
 LIBTRTS := libsgx_trts_sim.a
 
+LIBSGX_MM_PATH = $(LINUX_EXTERNAL_DIR)/sgx-emm
+LIBSGX_MM = libsgx_mm.a
+
 vpath %.cpp $(TRTS_DIR):$(TINST_DIR)
 vpath %.S   $(LOWLIB_DIR):$(TLDR_DIR):$(XSAVE_DIR)
 vpath %.c   $(TLS_DIR):$(TLDR_DIR)
@@ -103,14 +110,24 @@ vpath %.c   $(TLS_DIR):$(TLDR_DIR)
 all: $(LIBTRTS) | $(BUILD_DIR)
 	$(CP) $< $|
 
-$(LIBTRTS): $(TRTS_OBJS) $(TINST_OBJS) $(LOWLIB_OBJS) $(TLS_OBJS) $(TLDR_OBJS) 
+$(LIBTRTS): $(TRTS_OBJS) $(TINST_OBJS) $(LOWLIB_OBJS) $(TLS_OBJS) $(TLDR_OBJS) $(LIBSGX_MM)
 	$(AR) rcsD $@ $(TRTS_OBJS) $(TINST_OBJS) $(LOWLIB_OBJS) $(TLS_OBJS) $(TLDR_OBJS)
+	$(MKDIR) $(BUILD_DIR)/.libsgx_mm
+	$(RM) $(BUILD_DIR)/.libsgx_mm/* && cd $(BUILD_DIR)/.libsgx_mm && $(AR) x $(LIBSGX_MM_PATH)/libsgx_mm.a
+	$(AR) rsD $@ $(BUILD_DIR)/.libsgx_mm/*.o
+	@$(RM) -rf $(BUILD_DIR)/.libsgx_mm
+
+$(LIBSGX_MM):
+	$(MAKE) -C $(LIBSGX_MM_PATH)
 
 # ------------------------------------------------------------
 $(TRTS1_OBJS):    CPPFLAGS += -I$(COMMON_DIR)/inc/tlibc \
                              -I$(SIM_DIR)/tinst/
 $(TRTS2_OBJS): %.o:%.cpp
 	$(CXX) -c $(filter-out -fstack-protector-strong, $(CXXFLAGS)) -I$(SIM_DIR)/tinst/ $(CPPFLAGS) $< -o $@
+
+$(TRTS3_OBJS): %.o:../%.c
+	$(CC) -c $(TCFLAGS) $(CFLAGS) -I$(COMMON_DIR)/inc -I$(COMMON_DIR)/inc/internal -I$(COMMON_DIR)/inc/internal/linux  -I$(COMMON_DIR)/inc/tlibc -I$(SIM_DIR)/tinst/ -fPIC $< -o $@
 
 
 # Explicitly disable optimization for tRTS simulation library,

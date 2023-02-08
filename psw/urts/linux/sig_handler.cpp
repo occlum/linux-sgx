@@ -173,10 +173,12 @@ void sig_handler(int signum, siginfo_t* siginfo, void *priv)
         } else {
             ecmd = ECMD_INTERRUPT;
         }
+        UNUSED(ms);
 
-        CEnclave *enclave = param->trust_thread->get_enclave();
-        unsigned int ret = enclave->ecall(ecmd, param->ocall_table, ms);
-        if(SGX_SUCCESS == ret)
+        // CEnclave *enclave = param->trust_thread->get_enclave();
+        // unsigned int ret = enclave->ecall(ecmd, param->ocall_table, ms);
+        unsigned int ret = do_ecall(ecmd, param->ocall_table, NULL, param->trust_thread);
+        if (SGX_SUCCESS == ret)
         {
             //ERESUME execute
             return;
@@ -192,8 +194,8 @@ void sig_handler(int signum, siginfo_t* siginfo, void *priv)
         //If we can't fix the exception within enclave, then give the handle to other signal hanlder.
         //Call the previous signal handler. The default signal handler should terminate the application.
 
-        enclave->rdunlock();
-        CEnclavePool::instance()->unref_enclave(enclave);
+        // enclave->rdunlock();
+        // CEnclavePool::instance()->unref_enclave(enclave);
     }
     else if (signum == SIGRT_INTERRUPT)
     {

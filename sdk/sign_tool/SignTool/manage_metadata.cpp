@@ -599,6 +599,12 @@ bool CMetadata::check_xml_parameter(const xml_parameter_t *parameter)
     return true;
 }
 
+uint64_t CMetadata::calc_overhead(uint64_t size)
+{
+    size_t bsize = ROUND_TO(size + sizeof(uint64_t), 0x8);
+    return (bsize < 0x10) ? 0x10 : bsize;
+}
+
 uint64_t CMetadata::calculate_rts_bk_overhead()
 {
     uint64_t ema_overhead = sizeof(struct ema_t_);
@@ -606,71 +612,71 @@ uint64_t CMetadata::calculate_rts_bk_overhead()
 
     // MIN heap
     uint32_t page_count = (uint32_t)(m_create_param.heap_min_size >> SE_PAGE_SHIFT);
-    uint64_t heap_node_overhead = ema_overhead + bit_array_overhead + (ROUND_TO(page_count, 8) >> 3);
+    uint64_t heap_node_overhead = calc_overhead(ema_overhead) + calc_overhead(bit_array_overhead) + calc_overhead((ROUND_TO(page_count, 8) >> 3));
 
     if(m_create_param.heap_init_size > m_create_param.heap_min_size)
     {
         // INIT heap
         page_count = (uint32_t)((m_create_param.heap_init_size - m_create_param.heap_min_size) >> SE_PAGE_SHIFT);
-        heap_node_overhead += ema_overhead + bit_array_overhead + (ROUND_TO(page_count, 8) >> 3);
+        heap_node_overhead += calc_overhead(ema_overhead) + calc_overhead(bit_array_overhead) + calc_overhead((ROUND_TO(page_count, 8) >> 3));
     }
 
     if(m_create_param.heap_max_size > m_create_param.heap_init_size)
     {
         page_count = (uint32_t)((m_create_param.heap_max_size - m_create_param.heap_init_size) >> SE_PAGE_SHIFT);
-        heap_node_overhead += ema_overhead + bit_array_overhead + (ROUND_TO(page_count, 8) >> 3);
+        heap_node_overhead += calc_overhead(ema_overhead) + calc_overhead(bit_array_overhead) + calc_overhead((ROUND_TO(page_count, 8) >> 3));
     }
 
     page_count = (uint32_t)(m_create_param.rsrv_min_size >> SE_PAGE_SHIFT);
-    uint64_t rsrv_node_overhead = ema_overhead + bit_array_overhead + (ROUND_TO(page_count, 8) >> 3);
+    uint64_t rsrv_node_overhead = calc_overhead(ema_overhead) + calc_overhead(bit_array_overhead) + calc_overhead((ROUND_TO(page_count, 8) >> 3));
 
     if(m_create_param.rsrv_init_size > m_create_param.rsrv_min_size)
     {
         // INIT RSRV
         page_count = (uint32_t)((m_create_param.rsrv_init_size - m_create_param.rsrv_min_size) >> SE_PAGE_SHIFT);
-        rsrv_node_overhead += ema_overhead + bit_array_overhead + (ROUND_TO(page_count, 8) >> 3);
+        rsrv_node_overhead += calc_overhead(ema_overhead) + calc_overhead(bit_array_overhead) + calc_overhead((ROUND_TO(page_count, 8) >> 3));
     }
 
     if(m_create_param.rsrv_max_size > m_create_param.rsrv_init_size)
     {
         page_count = (uint32_t)((m_create_param.rsrv_max_size - m_create_param.rsrv_init_size) >> SE_PAGE_SHIFT);
-        rsrv_node_overhead += ema_overhead + bit_array_overhead + (ROUND_TO(page_count, 8) >> 3);
+        rsrv_node_overhead += calc_overhead(ema_overhead) + calc_overhead(bit_array_overhead) + calc_overhead((ROUND_TO(page_count, 8) >> 3));
     }
     // guard page | stack | guard page | TCS | SSA | guard page | TLS
 
     // guard page
-    uint64_t non_removed_ctx_overhead = ema_overhead;
-    uint64_t removed_ctx_overhead = ema_overhead;
+    uint64_t non_removed_ctx_overhead = calc_overhead(ema_overhead);
+    uint64_t removed_ctx_overhead = calc_overhead(ema_overhead);
 
     // stack
     page_count = (uint32_t)(m_create_param.stack_min_size >> SE_PAGE_SHIFT);
-    non_removed_ctx_overhead += ema_overhead + bit_array_overhead + (ROUND_TO(page_count, 8) >> 3);
-    removed_ctx_overhead += ema_overhead;
+    non_removed_ctx_overhead += calc_overhead(ema_overhead) + calc_overhead(bit_array_overhead) + calc_overhead((ROUND_TO(page_count, 8) >> 3));
+    removed_ctx_overhead += calc_overhead(ema_overhead);
 
     if(m_create_param.stack_max_size > m_create_param.stack_min_size)
     {
         page_count = (uint32_t)((m_create_param.stack_max_size - m_create_param.stack_min_size) >> SE_PAGE_SHIFT);
-        non_removed_ctx_overhead += ema_overhead + bit_array_overhead + (ROUND_TO(page_count, 8) >> 3);
-        removed_ctx_overhead += ema_overhead;
+        non_removed_ctx_overhead += calc_overhead(ema_overhead) + calc_overhead(bit_array_overhead) + calc_overhead((ROUND_TO(page_count, 8) >> 3));
+        removed_ctx_overhead += calc_overhead(ema_overhead);
     }
 
     // guard page
-    non_removed_ctx_overhead += ema_overhead;
-    removed_ctx_overhead += ema_overhead;
+    non_removed_ctx_overhead += calc_overhead(ema_overhead);
+    removed_ctx_overhead += calc_overhead(ema_overhead);
 
     // tcs
     page_count = TCS_SIZE >> SE_PAGE_SHIFT;
-    non_removed_ctx_overhead += ema_overhead + bit_array_overhead + (ROUND_TO(page_count, 8) >> 3);
-    removed_ctx_overhead += ema_overhead;
+    non_removed_ctx_overhead += calc_overhead(ema_overhead) + calc_overhead(bit_array_overhead) + calc_overhead((ROUND_TO(page_count, 8) >> 3));
+    removed_ctx_overhead += calc_overhead(ema_overhead);
 
     // ssa
     page_count = m_metadata->ssa_frame_size * SSA_NUM;
-    non_removed_ctx_overhead += ema_overhead + bit_array_overhead + (ROUND_TO(page_count, 8) >> 3);
+    non_removed_ctx_overhead += calc_overhead(ema_overhead) + calc_overhead(bit_array_overhead) + calc_overhead((ROUND_TO(page_count, 8) >> 3));
     removed_ctx_overhead += ema_overhead;
 
     // guard page
-    non_removed_ctx_overhead += ema_overhead;
-    removed_ctx_overhead += ema_overhead;
+    non_removed_ctx_overhead += calc_overhead(ema_overhead);
+    removed_ctx_overhead += calc_overhead(ema_overhead);
 
     // td
     page_count = 1;
@@ -679,8 +685,8 @@ uint64_t CMetadata::calculate_rts_bk_overhead()
     {
         page_count += (uint32_t)(ROUND_TO_PAGE(section->virtual_size()) >> SE_PAGE_SHIFT);
     }
-    non_removed_ctx_overhead += ema_overhead + bit_array_overhead + (ROUND_TO(page_count, 8) >> 3);
-    removed_ctx_overhead += ema_overhead;
+    non_removed_ctx_overhead += calc_overhead(ema_overhead) + calc_overhead(bit_array_overhead) + calc_overhead((ROUND_TO(page_count, 8) >> 3));
+    removed_ctx_overhead += calc_overhead(ema_overhead);
     
     uint32_t tcs_min_pool = 0; /* Number of static threads (EADD) */
     uint32_t tcs_eremove = 0;
@@ -730,9 +736,11 @@ uint64_t CMetadata::calculate_rts_bk_overhead()
     std::vector<Section*> sections = m_parser->get_sections();
     for (auto s : sections) {
         uint32_t p_count = (uint32_t)(ROUND_TO_PAGE(s->virtual_size()) >> SE_PAGE_SHIFT);
-        total_sections_overhead += ema_overhead + bit_array_overhead + (ROUND_TO(p_count, 8) >> 3);
+        total_sections_overhead += calc_overhead(ema_overhead) + calc_overhead(bit_array_overhead) + calc_overhead((ROUND_TO(p_count, 8) >> 3));
     }
 
+    printf("heap: %lx, rsrv: %lx, ctx: %lx, removed_ctx: %lx, sections: %lx\n",
+        heap_node_overhead, rsrv_node_overhead, total_non_removed_ctx_overhead, total_removed_ctx_overhead, total_sections_overhead);
     return heap_node_overhead +
            rsrv_node_overhead +
            total_non_removed_ctx_overhead +
@@ -1183,7 +1191,9 @@ bool CMetadata::build_layout_table()
     {
         // 0x20000 comes from initial emalloc reserve size (0x10000 bytes),
         // plus two guard pages (0x8000 bytes each)
-        uint64_t rts_bk_overhead = calculate_rts_bk_overhead() + 0x20000;
+        uint64_t rts_bk_overhead_tmp = ROUND_TO(calculate_rts_bk_overhead(), 0x10000);
+        printf("rts_bk_overhead: %lx\n", rts_bk_overhead_tmp);
+        uint64_t rts_bk_overhead = (rts_bk_overhead_tmp + 0x10000) * 2;
         uint64_t user_region_size = ROUND_TO_PAGE(rts_bk_overhead);
         se_trace(SE_TRACE_ERROR, "RTS bookkeeping overhead: 0x%016llX\n", user_region_size);
 

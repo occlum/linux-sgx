@@ -136,6 +136,7 @@ private:
     bool vaildate_elrange_config();
     bool build_elrange_config_entry();
     uint64_t calculate_rts_bk_overhead();
+    uint64_t calc_overhead(uint64_t size);
     bool check_config();
     uint8_t m_meta_verions;
 
