@@ -310,6 +310,17 @@ int sgx_is_enclave_crashed()
     return get_enclave_state() == ENCLAVE_CRASHED;
 }
 
+int sgx_get_enclave_mode()
+{
+#ifdef SE_SIM
+    return SE_SIM_MODE;
+#elif defined(SE_HYPER)
+    return SE_HYPER_MODE;
+#else
+    return SE_HW_MODE;
+#endif
+}
+
 extern uintptr_t __stack_chk_guard;
 int check_static_stack_canary(void *tcs)
 {

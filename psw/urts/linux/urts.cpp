@@ -298,3 +298,14 @@ extern "C" sgx_status_t sgx_get_metadata(const char* enclave_file, metadata_t *m
     close(fd);
     return SGX_SUCCESS;
 }
+
+extern "C" int sgx_get_enclave_mode()
+{
+#ifdef SE_SIM
+    return SE_SIM_MODE;
+#elif defined(SE_HYPER)
+    return SE_HYPER_MODE;
+#else
+    return SE_HW_MODE;
+#endif
+}

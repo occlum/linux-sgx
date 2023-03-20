@@ -94,3 +94,8 @@ sgx_status_t sgx_get_metadata()
     printf("Please use the correct uRTS library from PSW package.\n");
     return SGX_ERROR_UNEXPECTED;
 }
+int sgx_get_enclave_mode()
+{
+    printf("Please use the correct uRTS library from PSW package.\n");
+    return 0;
+}
