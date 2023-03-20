@@ -36,6 +36,7 @@
 #include "stddef.h"
 #include "sgx_defs.h"
 #include "stdint.h"
+#include "sgx_mode.h"
 
 #ifdef __cplusplus
 extern "C" {
