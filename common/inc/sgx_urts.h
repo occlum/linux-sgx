@@ -40,6 +40,7 @@
 #include "sgx_defs.h"
 #include "sgx_key.h"
 #include "sgx_report.h"
+#include "sgx_mode.h"
 
 #include <stddef.h>
 
