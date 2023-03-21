@@ -110,13 +110,12 @@ void* memcpy_verw(void *dst0, const void *src0, size_t len)
     }
 
     while (len >= 8) {
-        if(((unsigned long long)dst%8 == 0) && ((unsigned long long)src%8 == 0)) {
+        if((unsigned long long)dst%8 == 0) {
             // 8-byte-aligned - don't need <VERW><MFENCE LFENCE> bracketing
-            size_t len0 = len - len%8;
-            memcpy_nochecks(dst, src, len0);
-            src += len0;
-            dst += len0;
-            len -= len0;
+            __memcpy_8a(dst, src);
+            src += 8;
+            dst += 8;
+            len -= 8;
         }
         else{
             // not 8-byte-aligned - need <VERW><MFENCE LFENCE> bracketing
@@ -128,9 +127,9 @@ void* memcpy_verw(void *dst0, const void *src0, size_t len)
     }
     // less than 8 bytes left - need <VERW> <MFENCE LFENCE> bracketing
     for (unsigned i = 0; i < len; i++) {
-        __memcpy_verw(dst, src);
-        src++;
-        dst++;
+            __memcpy_verw(dst, src);
+            src++;
+            dst++;
     }
     return dst0;
 }
@@ -150,35 +149,27 @@ memcpy_nochecks(void *dst0, const void *src0, size_t length)
 static void
 copy_external_memory(void* dst, const void* src, size_t count, bool is_dst_external)
 {
-    char tmp_buf[16]={0};
+    unsigned char tmp_buf[16]={0};
     unsigned int off_src = (unsigned long long)src%8;
-    char* src_buf = NULL;
     if(count == 0)
     {
         return;
     }
-    //if external src is not 8-byte-aligned or count != 8
-    if(off_src != 0 || count != 8)
+
+    //if src is 8-byte-aligned, copy 8 bytes from outside the enclave to the buffer
+    //if src is not 8-byte-aligned and off_src + count > 8, copy 16 bytes from outside the enclave to the buffer
+    __memcpy_8a(tmp_buf, src - off_src);
+    if(off_src != 0 && off_src + count > 8)
     {
-        //if external src is not 8-byte-aligned, need to copy from src-off_src to a tmp_buf inside the enclave
-        __memcpy_8a(tmp_buf, src - off_src);
-        if(off_src != 0 && off_src + count > 8)
-        {
-            __memcpy_8a(tmp_buf + 8, src - off_src + 8);
-        }
-        src_buf = tmp_buf + off_src;
-    }
-    else
-    {
-        src_buf = (char*)src;
+        __memcpy_8a(tmp_buf + 8, src - off_src + 8);
     }
     if(is_dst_external)
     {
-        memcpy_verw(dst, src_buf, count);
+        memcpy_verw(dst, tmp_buf + off_src, count);
     }
     else
     {
-        memcpy_nochecks(dst, src_buf, count);
+        memcpy_nochecks(dst, tmp_buf + off_src, count);
     }
     return;
 }
@@ -208,28 +199,16 @@ memcpy_checks(void *dst0, const void *src0, size_t length)
     }
 
     //src is outside the enclave
-    size_t len = 0;
+    unsigned int len = 0;
     char* dst = dst0;
     const char *src = (const char *)src0;
     while(length >= 8)
     {
-        //if dst and src are both 8-byte-aligned, direct call memcpy_nochecks
-        if(((unsigned long long)dst%8 == 0) && ((unsigned long long)src%8 == 0))
-        {
-            len = length - length%8;
-            memcpy_nochecks(dst, src, len);
-            src += len;
-            dst += len;
-            length -= len;
-        }
-        else
-        {
-            len = 8 - (unsigned long long)dst%8;
-            copy_external_memory(dst, src, len, is_dst_external);
-            src += len;
-            dst += len;
-            length -= len;
-        }
+        len = 8 - (unsigned long long)dst%8;
+        copy_external_memory(dst, src, len, is_dst_external);
+        src += len;
+        dst += len;
+        length -= len;
     }
     //less than 8 bytes left
     copy_external_memory(dst, src, length, is_dst_external);
