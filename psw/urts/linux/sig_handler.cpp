@@ -175,7 +175,8 @@ void sig_handler(int signum, siginfo_t* siginfo, void *priv)
         }
 
         CEnclave *enclave = param->trust_thread->get_enclave();
-        unsigned int ret = enclave->ecall(ecmd, param->ocall_table, ms);
+        // unsigned int ret = enclave->ecall(ecmd, param->ocall_table, ms);
+        unsigned int ret = do_ecall(ecmd, param->ocall_table, ms, param->trust_thread);
         if(SGX_SUCCESS == ret)
         {
             //ERESUME execute
