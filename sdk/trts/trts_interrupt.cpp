@@ -1,7 +1,11 @@
 #include "sgx_interrupt.h"
+#include "arch.h"
 #include "thread_data.h"
 #include "trts_internal.h"
+#include "util.h"
+#include "trts_util.h"
 
+#include "se_memcpy.h"
 extern "C" __attribute__((regparm(1))) void continue_execution(sgx_interrupt_info_t *info);
 
 static sgx_interrupt_handler_t registered_handler = NULL;
@@ -56,9 +60,15 @@ int check_ip_interruptible(size_t ip) {
         (ip - enabled_code_addr) < enabled_code_size;
 }
 
-__attribute__((regparm(1))) void internal_handle_interrupt(sgx_interrupt_info_t *info) {
+extern "C" __attribute__((regparm(1))) void internal_handle_interrupt(sgx_interrupt_info_t *info) {
+    thread_data_t *thread_data = get_thread_data();
+    uint8_t *xsave_in_ssa = NULL;
+
     if (info->interrupt_valid)
     {
+        xsave_in_ssa = (uint8_t*)ROUND_TO_PAGE(thread_data->first_ssa_gpr) - ROUND_TO_PAGE(get_xsave_size() + sizeof(ssa_gpr_t));
+        memcpy_s(info->xsave_area, info->xsave_size, xsave_in_ssa, info->xsave_size);
+
         registered_handler(info);
         // Note that the registered handler must be in charge of continueing the execution of
         // the interrupted workloads.

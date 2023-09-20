@@ -65,6 +65,7 @@ static uintptr_t _EREMOVE(const void* epc_lin_addr);
 extern "C" void* get_td_addr(void);
 extern "C" int arch_prctl(int code, unsigned long addr);
 extern "C" bool get_elrange_start_address(void* base_address, uint64_t &elrange_start_address);
+extern "C" void save_xregs(void* addr);
 
 static __thread uintptr_t _dtv_u = 0;
 
@@ -81,15 +82,6 @@ static __thread uintptr_t _dtv_u = 0;
 #define GP_ON_EENTER GP_ON
 
 #define mcp_same_size(dst_ptr, src_ptr, size) memcpy_s(dst_ptr, size, src_ptr, size)
-
-static void fxsave_regs(char *addr)
-{
-    asm volatile("fxsave %0" : : "m" (*addr));
-}
-static void fxrstor_regs(char *addr)
-{
-    asm volatile("fxrstor %0" : : "m" (*addr));
-}
 
 static struct sigaction g_old_sigact[_NSIG];
 void call_old_handler(int signum, void* siginfo, void *priv)
@@ -575,8 +567,6 @@ void _SE3(uintptr_t xax, uintptr_t xbx,
         // Returning from this function enters the enclave
         return;
     case SE_ERESUME:
-        char buf[512]  __attribute((aligned (16)));
-        fxsave_regs(buf);
         SE_TRACE(SE_TRACE_DEBUG, "ERESUME instruction\n");
         // xbx contains the address of a TCS
         tcs = reinterpret_cast<tcs_t*>(xbx);
@@ -606,8 +596,7 @@ void _SE3(uintptr_t xax, uintptr_t xbx,
                 + (tcs->cssa+1) * secs->ssa_frame_size * SE_PAGE_SIZE
                 - sizeof(ssa_gpr_t));
 
-        mcp_same_size((char*)((size_t)p_ssa_gpr + sizeof(ssa_gpr_t) - secs->ssa_frame_size * SE_PAGE_SIZE), buf, sizeof(buf));
-        fxrstor_regs(buf);
+        save_xregs((char*)((size_t)p_ssa_gpr + sizeof(ssa_gpr_t) - secs->ssa_frame_size * SE_PAGE_SIZE));
         regs.xax = p_ssa_gpr->REG(ax);
         regs.xbx = p_ssa_gpr->REG(bx);
         regs.xdx = p_ssa_gpr->REG(dx);

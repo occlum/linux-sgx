@@ -299,6 +299,7 @@ extern "C" __attribute__((regparm(1))) void internal_handle_exception(sgx_except
     uintptr_t *ntmp = NULL;
     uintptr_t xsp = 0;
     bool standard_exception = true;
+    uint8_t *xsave_in_ssa = (uint8_t*)ROUND_TO_PAGE(thread_data->first_ssa_gpr) - ROUND_TO_PAGE(get_xsave_size() + sizeof(ssa_gpr_t));
 
     // AEX Notify allows this handler to handle interrupts
     if (info == NULL) {
@@ -308,6 +309,8 @@ extern "C" __attribute__((regparm(1))) void internal_handle_exception(sgx_except
         goto exception_handling_end;
     }
    
+    memcpy_s(info->xsave_area, info->xsave_size, xsave_in_ssa, info->xsave_size);
+
     if (thread_data->exception_flag < 0)
         goto failed_end;
     thread_data->exception_flag++;
@@ -643,7 +646,6 @@ handler_end:
     info->exception_vector = (sgx_exception_vector_t)ssa_gpr->exit_info.vector;
     info->exception_type = (sgx_exception_type_t)ssa_gpr->exit_info.exit_type;
     info->xsave_size = thread_data->xsave_size;
-    memcpy_s(info->xsave_area, info->xsave_size, ssa_xsave, info->xsave_size);
 
     info->cpu_context.REG(ax) = ssa_gpr->REG(ax);
     info->cpu_context.REG(cx) = ssa_gpr->REG(cx);
@@ -865,7 +867,6 @@ checked_end:
     // initialize the info with SSA[0]
     info->interrupt_valid = is_handle_interrupt;
     info->xsave_size = thread_data->xsave_size;
-    memcpy_s(info->xsave_area, info->xsave_size, ssa_xsave, info->xsave_size);
 
     info->cpu_context.REG(ax) = ssa_gpr->REG(ax);
     info->cpu_context.REG(cx) = ssa_gpr->REG(cx);
