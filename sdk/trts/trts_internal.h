@@ -61,7 +61,7 @@ sgx_status_t do_uninit_enclave(void *tcs);
 int check_static_stack_canary(void *tcs);
 sgx_status_t _pthread_thread_run(void* ms);
 
-sgx_status_t trts_handle_interrupt(void *tcs);
+sgx_status_t trts_handle_interrupt(void *tcs, void *ms);
 int check_ip_interruptible(size_t ip);
 __attribute__((regparm(1))) void internal_handle_interrupt(sgx_interrupt_info_t *info);
 

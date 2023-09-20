@@ -34,8 +34,18 @@
 #include "sgx_trts_exception.h"
 
 // A data structure that represents an interrupt
+ __attribute__((aligned(64)))
 typedef struct _sgx_interrupt_info_t {
     sgx_cpu_context_t   cpu_context;
+    uint32_t            interrupt_valid;
+    uint32_t            reserved;
+    uint64_t            xsave_size;
+#if defined (_M_X64) || defined (__x86_64__)
+    uint64_t            reserved1[4];
+#else
+    uint64_t            reserved1[1];
+#endif
+    uint8_t             xsave_area[0];    // 64-byte aligned
 } sgx_interrupt_info_t;
 
 // A handler function that processes an interrupt

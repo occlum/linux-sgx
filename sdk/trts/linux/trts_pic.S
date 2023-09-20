@@ -705,3 +705,11 @@ DECLARE_LOCAL_FUNC second_phase
     enclu                               /* DECCSSA */
     jmp     *%xdx
     
+/*
+ * -------------------------------------------------------------------------
+ * extern "C" __attribute__((regparm(1))) void writefsbase(uint64_t val);
+ * -------------------------------------------------------------------------
+ */
+DECLARE_LOCAL_FUNC writefsbase
+    wrfsbase  %xdi
+    ret

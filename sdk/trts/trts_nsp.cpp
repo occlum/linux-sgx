@@ -112,17 +112,17 @@ extern "C" int enter_enclave(int index, void *ms, void *tcs, int cssa)
             error = do_uninit_enclave(tcs);
         }
     }
-    else if(cssa == 1)
+    else if((cssa == 1) && (index == ECMD_INTERRUPT))
     {
-        error = trts_handle_exception(tcs, (outside_exitinfo_t*)ms);
+        error = trts_handle_interrupt(tcs, ms);
         if (check_static_stack_canary(tcs) != 0)
         {
             error = SGX_ERROR_STACK_OVERRUN;
         }
     }
-    else if((cssa == 1) && (index == ECMD_INTERRUPT))
+    else if(cssa == 1)
     {
-        error = trts_handle_interrupt(tcs);
+        error = trts_handle_exception(tcs, (outside_exitinfo_t*)ms);
         if (check_static_stack_canary(tcs) != 0)
         {
             error = SGX_ERROR_STACK_OVERRUN;

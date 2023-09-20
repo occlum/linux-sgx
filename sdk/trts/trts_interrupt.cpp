@@ -2,6 +2,8 @@
 #include "thread_data.h"
 #include "trts_internal.h"
 
+extern "C" __attribute__((regparm(1))) void continue_execution(sgx_interrupt_info_t *info);
+
 static sgx_interrupt_handler_t registered_handler = NULL;
 
 static __thread size_t enabled_code_addr = 0;
@@ -55,9 +57,17 @@ int check_ip_interruptible(size_t ip) {
 }
 
 __attribute__((regparm(1))) void internal_handle_interrupt(sgx_interrupt_info_t *info) {
-    registered_handler(info);
-    // Note that the registered handler must be in charge of continueing the execution of
-    // the interrupted workloads.
-    // TODO: restore the CPU context info
-    abort();
+    if (info->interrupt_valid)
+    {
+        registered_handler(info);
+        // Note that the registered handler must be in charge of continueing the execution of
+        // the interrupted workloads.
+        // TODO: restore the CPU context info
+        abort();
+    }
+    else
+    {
+        continue_execution(info);
+    }
+    return;
 }
