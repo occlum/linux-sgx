@@ -30,7 +30,9 @@
  */
 
 #include "util.h"
+#include "sgx_mm.h"
 #include "emm_private.h"
+#include <errno.h>
 
 int mm_commit(void* addr, size_t size)
 {
@@ -52,4 +54,63 @@ int mm_modify_permissions(void* addr, size_t size, int prot)
     UNUSED(size);
     UNUSED(prot);
     return 0;
+}
+
+int sgx_mm_alloc(void* addr, size_t size, int flags,
+                 sgx_enclave_fault_handler_t handler, void* priv,
+                 void** out_addr)
+{
+    UNUSED(addr);
+    UNUSED(size);
+    UNUSED(flags);
+    UNUSED(handler);
+    UNUSED(priv);
+    UNUSED(out_addr);
+    return EOPNOTSUPP;
+}
+
+int sgx_mm_commit(void* addr, size_t size)
+{
+    UNUSED(addr);
+    UNUSED(size);
+    return EOPNOTSUPP;
+}
+
+int sgx_mm_uncommit(void* addr, size_t size)
+{
+    UNUSED(addr);
+    UNUSED(size);
+    return EOPNOTSUPP;
+}
+
+int sgx_mm_dealloc(void* addr, size_t size)
+{
+    UNUSED(addr);
+    UNUSED(size);
+    return EOPNOTSUPP;
+}
+
+int sgx_mm_commit_data(void* addr, size_t size, uint8_t* data, int prot)
+{
+    UNUSED(addr);
+    UNUSED(size);
+    UNUSED(data);
+    UNUSED(prot);
+    return EOPNOTSUPP;
+}
+
+int sgx_mm_modify_type(void* addr, size_t size, int type)
+{
+    UNUSED(addr);
+    UNUSED(size);
+    UNUSED(type);
+    return EOPNOTSUPP;
+}
+
+int sgx_mm_modify_permissions(void* addr, size_t size, int prot)
+{
+    UNUSED(addr);
+    UNUSED(size);
+    UNUSED(prot);
+    return EOPNOTSUPP;
 }
