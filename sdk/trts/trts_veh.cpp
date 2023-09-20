@@ -488,9 +488,9 @@ extern "C" sgx_status_t trts_handle_exception(void *tcs, outside_exitinfo_t *u_o
 
     if (!standard_exception)
     {
-        // The bottom 2 pages are used as stack to handle the non-standard exceptions.
+        // The bottom 4 pages are used as stack to handle the non-standard exceptions.
         // User should take responsibility to confirm the stack is not corrupted.
-        sp = thread_data->stack_limit_addr + SE_PAGE_SIZE*2;
+        sp = thread_data->stack_limit_addr + SE_PAGE_SIZE * 4;
     }
     else
     {
@@ -810,9 +810,9 @@ checked_end:
             return SGX_SUCCESS;
     }
 
-    // The bottom 2 pages are used as stack to handle the non-standard exceptions.
+    // The bottom 4 pages are used as stack to handle the non-standard exceptions.
     // User should take responsibility to confirm the stack is not corrupted.
-    sp = thread_data->stack_limit_addr + SE_PAGE_SIZE*2;
+    sp = thread_data->stack_limit_addr + SE_PAGE_SIZE * 4;
 
     if(!is_stack_addr((void*)sp, 0))  // check stack overrun only, alignment will be checked after exception handled
     {
