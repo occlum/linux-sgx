@@ -43,6 +43,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include "sgx_defs.h"
+#include "sgx_error.h"
 
 #define EXCEPTION_CONTINUE_SEARCH       0
 #define EXCEPTION_CONTINUE_EXECUTION    -1
@@ -139,6 +140,13 @@ typedef struct _exception_info_t
 
 typedef int (*sgx_exception_handler_t)(sgx_exception_info_t *info);
 
+// For now, Occlum user space can have at most two discrete ranges.
+#define OCCLUM_USER_SPACE_RANGE_NUM 2
+typedef struct {
+    uintptr_t start;
+    uintptr_t end;
+} sgx_addr_range_t;
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -167,6 +175,7 @@ void * SGXAPI sgx_register_exception_handler(int is_first_handler, sgx_exception
 */
 int SGXAPI sgx_unregister_exception_handler(void *handler);
 
+sgx_status_t SGXAPI sgx_register_exception_handler_for_occlum_user_space(sgx_addr_range_t user_space_ranges[OCCLUM_USER_SPACE_RANGE_NUM], sgx_exception_handler_t exception_handler);
 
 #ifdef __cplusplus
 }

@@ -70,6 +70,8 @@ static sgx_spinlock_t g_handler_lock = SGX_SPINLOCK_INITIALIZER;
 
 static uintptr_t g_veh_cookie = 0;
 sgx_mm_pfhandler_t g_mm_pfhandler = NULL;
+sgx_exception_handler_t g_occlum_user_space_exception_handler = NULL;
+
 #define ENC_VEH_POINTER(x)  (uintptr_t)(x) ^ g_veh_cookie
 #define DEC_VEH_POINTER(x)  (sgx_exception_handler_t)((x) ^ g_veh_cookie)
 extern int g_aexnotify_supported;
@@ -198,6 +200,7 @@ extern "C" __attribute__((regparm(1))) void second_phase(void *info,
     void *new_sp, void *second_phase_handler_addr);
 extern "C" __attribute__((regparm(1))) void writefsbase(uint64_t val);
 static bool is_standard_exception(uintptr_t);
+static bool is_occlum_user_space_exception(sgx_exception_info_t *info);
 
 // continue_execution(sgx_exception_info_t *info):
 // try to restore the thread context saved in info to current execution context.
@@ -299,6 +302,7 @@ extern "C" __attribute__((regparm(1))) void internal_handle_exception(sgx_except
     uintptr_t *ntmp = NULL;
     uintptr_t xsp = 0;
     bool standard_exception = true;
+    bool occlum_user_space_exception = false;
     uint8_t *xsave_in_ssa = (uint8_t*)ROUND_TO_PAGE(thread_data->first_ssa_gpr) - ROUND_TO_PAGE(get_xsave_size() + sizeof(ssa_gpr_t));
 
     // AEX Notify allows this handler to handle interrupts
@@ -314,6 +318,19 @@ extern "C" __attribute__((regparm(1))) void internal_handle_exception(sgx_except
     if (thread_data->exception_flag < 0)
         goto failed_end;
     thread_data->exception_flag++;
+
+    occlum_user_space_exception = is_occlum_user_space_exception(info);
+    if(occlum_user_space_exception) {
+        // Use Occlum registered handler
+        // The handler will only returns if it is Occlum kernel-triggered exception
+        thread_data->exception_flag--;
+        if (SGX_MM_EXCEPTION_CONTINUE_EXECUTION == g_occlum_user_space_exception_handler(info)) {
+            //instruction triggering the exception will be executed again.
+            goto exception_handling_end;
+        }
+        //restore old flag, and fall thru
+        thread_data->exception_flag++;
+    }
 
     if(info->exception_vector == SGX_EXCEPTION_VECTOR_PF &&
         (g_mm_pfhandler != NULL))
@@ -720,6 +737,60 @@ handler_end:
 default_handler:
     set_enclave_state(ENCLAVE_CRASHED);
     return SGX_ERROR_ENCLAVE_CRASHED;
+}
+
+static sgx_addr_range_t g_occlum_user_space[OCCLUM_USER_SPACE_RANGE_NUM] = {{0,0}, {0,0}};
+
+static bool is_address_in_occlum_user_space(uintptr_t addr)
+{
+    sgx_addr_range_t range_a = g_occlum_user_space[0];
+    sgx_addr_range_t range_b = g_occlum_user_space[1];
+    assert(range_a.start != 0);
+    return (addr >= range_a.start && addr < range_a.end) || (range_b.start != 0 && addr >= range_b.start && addr < range_b.end);
+}
+
+static bool is_occlum_user_space_exception(sgx_exception_info_t *info)
+{
+    // Occlum doesn't register the exception handler
+    if (g_occlum_user_space_exception_handler == NULL || g_occlum_user_space[0].start == 0) {
+        return false;
+    }
+
+    uintptr_t faulting_addr = info->exinfo.faulting_address;
+    uintptr_t rip = info->cpu_context.REG(ip);
+    // Either faulting address or RIP points to the Occlum's userspace
+    // For #UD exception (rdtsc, cpuid, etc), the faulting address is zero, we need to check rip
+    // For Occlum kernel triggered #PF, the rip is not in user space, we need to check the faulting address
+    return is_address_in_occlum_user_space(faulting_addr) || is_address_in_occlum_user_space(rip);
+}
+
+sgx_status_t sgx_register_exception_handler_for_occlum_user_space(sgx_addr_range_t user_space_ranges[OCCLUM_USER_SPACE_RANGE_NUM], sgx_exception_handler_t exception_handler)
+{
+    if (!((user_space_ranges[0].start > 0) && (user_space_ranges[0].start < user_space_ranges[0].end) && \
+        (sgx_is_within_enclave((const void *)user_space_ranges[0].start, user_space_ranges[0].end - user_space_ranges[0].start)))) {
+        return SGX_ERROR_INVALID_PARAMETER;
+    }
+
+    if (user_space_ranges[1].start > 0) {
+        if (!(user_space_ranges[1].start < user_space_ranges[1].end && \
+            sgx_is_within_enclave((const void *)user_space_ranges[1].start, user_space_ranges[1].end - user_space_ranges[1].start))) {
+            return SGX_ERROR_INVALID_PARAMETER;
+        }
+    } else {
+        if (user_space_ranges[1].end != 0) {
+            return SGX_ERROR_INVALID_PARAMETER;
+        }
+    }
+
+    if (!sgx_is_within_enclave((const void*)exception_handler, 0)) {
+        return SGX_ERROR_INVALID_PARAMETER;
+    }
+
+    memcpy(g_occlum_user_space, user_space_ranges, OCCLUM_USER_SPACE_RANGE_NUM * sizeof(sgx_addr_range_t));
+
+    g_occlum_user_space_exception_handler = exception_handler;
+
+    return SGX_SUCCESS;
 }
 
 uintptr_t enclave_code_start_address = 0;
