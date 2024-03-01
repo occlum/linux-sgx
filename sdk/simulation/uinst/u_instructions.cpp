@@ -149,6 +149,8 @@ void sig_handler_sim(int signum, siginfo_t *siginfo, void *priv)
                 // Workaround for Occlum. Occlum only handle user application exception
                 // the fs_base is used by application which is not same as the gs_base used by Occlum
                 if (tmp_fs_base == tmp_gs_base) {
+                    tcs_target_state = TCS_STATE_ACTIVE;
+                    __atomic_store(&tcs_sim->tcs_state, &tcs_target_state, __ATOMIC_RELAXED);
                     return;
                 }
 
@@ -227,6 +229,11 @@ void sig_handler_sim(int signum, siginfo_t *siginfo, void *priv)
                 }
 
                 if (user_interrupt == false) {
+                    if (signum == SIGRT_INTERRUPT) {
+                        // will call urts sig_handler and return
+                        tcs_target_state = TCS_STATE_ACTIVE;
+                        __atomic_store(&tcs_sim->tcs_state, &tcs_target_state, __ATOMIC_RELAXED);
+                    }
                     // restore FS, GS base address
                     arch_prctl(ARCH_SET_FS, tmp_fs_base);
                     arch_prctl(ARCH_SET_GS, tmp_gs_base);
@@ -269,8 +276,9 @@ void reg_sig_handler_sim()
         sigdelset(&sig_act.sa_mask, SIGSEGV);
         sigdelset(&sig_act.sa_mask, SIGFPE);
     }
-    
-    sigdelset(&sig_act.sa_mask, SIGRT_INTERRUPT);
+
+    // SIGRT_INTERRUPT should be blocked when executing a signal handler
+    sigaddset(&sig_act.sa_mask, SIGRT_INTERRUPT);
 
     ret = sigaction(SIGSEGV, &sig_act, &g_old_sigact[SIGSEGV]);
     if (0 != ret) abort();
@@ -313,8 +321,6 @@ uintptr_t _EINIT(secs_t* secs, enclave_css_t *css, token_t *launch)
                 "SECS attributes.flag does NOT match signature attributes.flag\n");
             return SGX_ERROR_INVALID_ATTRIBUTE;
         }
-
-        reg_sig_handler_sim();
 
         // From SDM, ISVFAMILYID and ISVEXTPRODID are both included in the secs->reserved4
         isv_ext_id_t* isv_ext_id = reinterpret_cast<isv_ext_id_t *>(this_secs->reserved4);
