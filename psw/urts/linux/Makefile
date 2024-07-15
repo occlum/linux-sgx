@@ -150,8 +150,7 @@ $(LIBURTS_STATIC): $(LIBURTS)
 	@$(RM) -f $(BUILD_DIR)/.sgx_static_urts/*
 	cd $(BUILD_DIR)/.sgx_static_urts && \
 	$(AR) x $(COMMON_DIR)/se_wrapper/libwrapper.a && \
-	$(AR) x $(VTUNE_DIR)/sdk/src/ittnotify/libittnotify.a && \
-	$(RM) -f se_event.o
+	$(AR) x $(VTUNE_DIR)/sdk/src/ittnotify/libittnotify.a
 	$(AR) rsD $@ $(URTS_OBJ) $(BUILD_DIR)/.sgx_static_urts/*.o
 
 $(LIBURTS_DEBUG): $(LIBURTS)
